@@ -10,6 +10,11 @@ extends Camera2D
 @export var dead_zone := 28.0
 @export var follow_speed := 6.0
 
+## The camera sits this far above the character. Level and background geometry
+## checks derive the visible vertical range from it, so it is a constant rather
+## than a magic number buried in _process.
+const FOLLOW_OFFSET_Y := 110.0
+
 var _amplitude := 0.0
 var _end_ms := 0
 var _duration_ms := 1
@@ -48,5 +53,5 @@ func _process(_delta: float) -> void:
 		offset = Vector2.ZERO
 
 	if _target and is_instance_valid(_target):
-		var desired := _target.global_position + Vector2(0, -110)
+		var desired := _target.global_position + Vector2(0, -FOLLOW_OFFSET_Y)
 		global_position = global_position.lerp(desired, clampf(follow_speed * get_process_delta_time(), 0.0, 1.0))

@@ -68,6 +68,8 @@
 | BLOCKER | level::l01.json::unreachable-platforms | 用户实测"高台跳不上去"：平台抬升 140px > 跳高 103px | 高台改到 y=478（抬升 82px）；新增 `_test_level_is_reachable` 连通性 + 孤儿平台检查，负向对照（改回 140px）已验证会报红 |
 | BLOCKER | level::l01.json::gaps-wider-than-jump | 用户实测"深坑跳不过去"：坑宽 100–120px > 可跨越上限 93.8px | 坑宽统一收到 72px；新增 `_test_level_gaps_are_jumpable` 与 `_test_first_gap_crossing` |
 | BLOCKER | art::parallax_rig.gd::node-position-overwritten | Parallax2D 的 position 由引擎按相机滚动覆写，导致垂直偏移失效、背景与地面之间出现空带 | 垂直偏移改到子精灵；新增 `_test_background_meets_the_ground`（四层内容底边必须压到地平线以下） |
+| BLOCKER | art::parallax_rig.gd::cropped-edge-enters-view | 用户实测"一跳起来就露出贴图被裁剪的边"（柳枝画到贴图第 0 行） | 天空/中景/近景放大到 1.10 并重设 y（顶边 −288/−213/−223，均高于可见顶端 −177）；新增 `_test_background_crop_edges_stay_out_of_view` |
+| NOTE | test::parallax::wrap-period-per-layer | 各层缩放不同导致 repeat 周期不同，原"层间差值"断言口径失效 | 位移断言改为逐层按自身周期回绕归一化，实测残差 0 |
 
 ### Tashan Trigger Audit
 

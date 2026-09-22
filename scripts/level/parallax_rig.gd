@@ -7,15 +7,15 @@ extends Node2D
 ## construction, so we never need a seamless source image or a "repeat" hack.
 
 const LAYERS := [
-	{ "file": "bg_l1_sky.png", "scroll": 0.05, "y": 300.0, "scale": 0.75 },
+	{ "file": "bg_l1_sky.png", "scroll": 0.05, "y": 275.0, "scale": 1.10 },
 	# Offsets are derived from where each texture's painted content actually sits
 	# (measured per row-band, see docs/art/ART-BIBLE.md): the far ridge occupies
 	# rows 512–819, so at 0.75 scale the node must sit at y=330 for the ridge base
 	# to meet the ground line (y=560). Mid and near layers are bottom-anchored and
 	# reach below the ground so pits show earth instead of sky.
 	{ "file": "bg_l1_far.png", "scroll": 0.25, "y": 346.0, "scale": 0.75 },
-	{ "file": "bg_l1_mid.png", "scroll": 0.50, "y": 196.0, "scale": 0.75 },
-	{ "file": "bg_l1_near.png", "scroll": 0.80, "y": 420.0, "scale": 0.75 },
+	{ "file": "bg_l1_mid.png", "scroll": 0.50, "y": 300.0, "scale": 1.10 },
+	{ "file": "bg_l1_near.png", "scroll": 0.80, "y": 340.0, "scale": 1.10 },
 ]
 
 const BG_DIR := "res://assets/backgrounds/l1"

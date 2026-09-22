@@ -28,6 +28,7 @@ func _run() -> void:
 	await _test_level_is_reachable()
 	await _test_first_gap_crossing()
 	await _test_background_meets_the_ground()
+	await _test_background_crop_edges_stay_out_of_view()
 
 	if failures.is_empty():
 		print("ALL TESTS PASSED")
@@ -161,19 +162,18 @@ func _test_parallax() -> void:
 	camera.position = Vector2(1000, 0)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var last_index := rig.layers.size() - 1
-	var nearest_moved: float = rig.layers[last_index].global_position.x - before_node[last_index]
 	for i in range(rig.layers.size()):
 		var moved: float = rig.layers[i].get_child(0).global_position.x - before[i]
 		var moved_node: float = rig.layers[i].global_position.x - before_node[i]
 		print("[diag] layer %d scroll=%.2f child_moved=%.1f node_moved=%.1f" % [i, expected[i], moved, moved_node])
-		# Parallax2D shifts its own node by (1 - scroll_scale) * camera_delta and
-		# wraps it by whole repeat periods, so an absolute node position is not the
-		# spec. What the player actually sees is the *relative* displacement between
-		# layers: (0.80 - scroll_scale) * 1000 measured against the nearest layer.
-		var relative: float = moved_node - nearest_moved
-		var relative_want: float = (0.80 - expected[i]) * 1000.0
-		_check(absf(relative - relative_want) <= 8.0, "layer %d relative displacement %.1f != %.1f for a 1000 px camera move" % [i, relative, relative_want])
+		# Parallax2D shifts its own node by (1 - scroll_scale) * camera_delta and wraps
+		# it by whole repeat periods. Layers now have different periods (scale differs
+		# per layer), so the check normalises each layer by its own period: the screen
+		# space displacement is scroll_scale * camera_delta (PRD: 50/250/500/800 px).
+		var period: float = rig.layers[i].repeat_size.x
+		var want: float = (1.0 - expected[i]) * 1000.0
+		var residual: float = fposmod(moved_node - want + period * 0.5, period) - period * 0.5
+		_check(absf(residual) <= 8.0, "layer %d scrolled %.1f px (want %.1f, residual %.1f, period %.1f)" % [i, moved_node, want, residual, period])
 	rig.queue_free()
 	camera.queue_free()
 	await get_tree().process_frame
@@ -361,6 +361,61 @@ func _test_first_gap_crossing() -> void:
 	_check(player.global_position.x > next_x - 20.0, "player did not clear the first gap (x=%.1f, next platform starts at %.1f)" % [player.global_position.x, next_x])
 	root.queue_free()
 	await get_tree().physics_frame
+
+
+func _test_background_crop_edges_stay_out_of_view() -> void:
+	# 用户实测缺陷："一跳起来就露出贴图被裁剪的边"（柳枝正好画到贴图第 0 行）。
+	# 规则：如果某层内容画到了贴图的上/下边界，那这条边界必须落在可见范围之外。
+	var view := _visible_vertical_range()
+	var margin := 20.0
+	var rig := ParallaxRig.new()
+	get_tree().root.add_child(rig)
+	rig.build()
+	await get_tree().process_frame
+	for layer in rig.layers:
+		var sprite: Sprite2D = layer.get_child(0)
+		var texture: Texture2D = sprite.texture
+		var height := float(texture.get_height())
+		var half := height * 0.5
+		var scale_y := sprite.scale.y
+		var top_edge: float = sprite.position.y - half * scale_y
+		var bottom_edge: float = sprite.position.y + half * scale_y
+		if _content_top_row(texture, 16) <= 0:
+			_check(top_edge <= view["top"] - margin, "layer %s has content cut at the texture top edge (%.0f) which enters the view (visible top %.0f) — jumping will expose the crop" % [layer.name, top_edge, view["top"]])
+		if _content_bottom_row(texture, 16) >= int(height) - 4:
+			_check(bottom_edge >= view["bottom"] + margin, "layer %s has content cut at the texture bottom edge (%.0f) which leaves the view (visible bottom %.0f)" % [layer.name, bottom_edge, view["bottom"]])
+	rig.queue_free()
+	await get_tree().process_frame
+
+
+func _visible_vertical_range() -> Dictionary:
+	# 可见范围由关卡的最高/最低平台、跳跃高度、相机偏移和视口高度共同决定。
+	var raw := FileAccess.get_file_as_string(LevelBuilder.LEVEL_PATH)
+	var data: Dictionary = JSON.parse_string(raw)
+	var highest := 100000.0
+	var lowest := -100000.0
+	for platform in data.get("platforms", []):
+		var top := float(platform["y"])
+		highest = minf(highest, top)
+		lowest = maxf(lowest, top)
+	var viewport_height: float = float(ProjectSettings.get_setting("display/window/size/viewport_height", 720))
+	var half_view := viewport_height * 0.5
+	var jump := Xuanzang.max_jump_height()
+	var top := highest - jump - ScreenShake.FOLLOW_OFFSET_Y - half_view
+	var bottom := lowest - ScreenShake.FOLLOW_OFFSET_Y + half_view
+	return { "top": top, "bottom": bottom }
+
+
+func _content_top_row(texture: Texture2D, threshold: int) -> int:
+	var image := texture.get_image()
+	if image.is_empty():
+		return 0
+	var step := 4
+	for y in range(0, image.get_height(), step):
+		for x in range(0, image.get_width(), step):
+			if image.get_pixel(x, y).a * 255.0 > float(threshold):
+				return y
+	return image.get_height()
 
 
 func _test_background_meets_the_ground() -> void:
