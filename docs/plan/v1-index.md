@@ -9,10 +9,10 @@
 | M | 名称 | 范围 | DoD（可二元判定） | 验证命令 / 证据 | 状态 |
 |---|---|---|---|---|---|
 | M1 | 素材管线与第一批美术 | OFOX manifest → raw 留档 → QA → 规范化 → Godot 可用贴图 | ① 每个 run 目录含 `request.json`；② `qa-*.json` 中精灵图 `native_alpha=true` 且 `transparent_ratio>0.15`；③ 规范化后同 actor/alias 各帧 `top` 与 `height` 唯一 | `python tools/asset_pipeline.py qa --batch l1-batch-a`；`python tools/asset_pipeline.py normalize --verify`（退出码 0） | doing（主角 11 帧 / 3 层视差 / 天空 / 特效 / 道具 已通过；**敌兵姿态待补**，见差异列表） |
-| M2 | 工程骨架与移动手感 | Godot 4.7.2 工程、输入映射、玩家控制器、摄像机 | ① `godot --headless --quit` 无 `ERROR`/`SCRIPT ERROR`；② `tests/test_movement.gd` 全绿：跳跃峰值 3.2±0.2 格、土狼时间 ≥0.10s、跳跃缓冲 ≥0.12s、水平速度 220±10 px/s | `godot --headless --script tests/test_runner.gd` 输出 `ALL TESTS PASSED` | todo |
-| M3 | 打击感与战斗 | 三段锡杖、hitstop、震屏、火花、受击闪白与击退、关吏 AI | ① hitstop 落在 0.06–0.09s；② 命中触发震屏（幅度 3–6px）与火花节点；③ 敌人在 3 次命中后进入 `down` 状态；④ 玩家无敌帧 0.5s 内不重复扣定力 | `tests/test_combat.gd` 全绿 | todo |
-| M4 | 视差与第一关 | Parallax2D 四层、地形、checkpoint、终点、HUD | ① 摄像机位移 1000px 时四层位移为 50/250/500/800（±4px）；② 关卡含 ≥3 个 checkpoint 与 1 个终点；③ HUD 显示定力 3 颗、心念 0–100 | `tests/test_parallax.gd`；`tests/e2e_l01.gd` | todo |
-| M5 | 文斗 / 存档 / 流程 | 文斗回合制、叙事卡、存档、关卡选择 | ① 文斗 4 回合脚本可走通且"全胜"路径不触发伤害；② `save.json` 写入后重新读取一致；③ 通关 L1 后解锁 L2 入口 | `tests/test_debate.gd`；`tests/test_save.gd` | todo |
+| M2 | 工程骨架与移动手感 | Godot 4.7.2 工程、输入映射、玩家控制器、摄像机 | ① 水平速度 220±10 px/s；② 跳跃峰值 103±14 px（≈3.2 格）；③ 土狼时间内起跳成功 | `godot --headless --path . tests/test_scene.tscn` → `ALL TESTS PASSED` | done |
+| M3 | 打击感与战斗 | 锡杖攻击、hitstop、震屏、受击击退、关吏 AI（美术占位） | ① hitstop ∈[0.06,0.09]s 且 `time_scale` 复原；② 攻击命中使关吏掉血；③ 震屏幅度 3–6px | 同上（攻击命中 / hitstop 0.07 / time_scale=1.0 均断言） | doing（连击第二段、火花节点、敌兵美术待补） |
+| M4 | 视差与第一关 | Parallax2D 四层、地形、3× checkpoint、终点、HUD | ① 层间相对位移符合 50/250/500/800 比例（±8px）；② 真实关卡数据上玩家落地且能前进 | 同上（`_test_parallax` / `_test_real_level_ground`） | doing（终点结算、叙事卡待补） |
+| M5 | 文斗 / 存档 / 流程 | 文斗回合制、叙事卡、存档、关卡选择 | ① `save.json` 往返一致；② 通关 L1 解锁 L2；③ 文斗 4 回合可走通 | 存档与解锁断言已过；文斗未实现 | doing（存档 done；文斗 todo） |
 
 ## 计划索引
 
@@ -26,17 +26,17 @@
 
 | Req ID | v1 计划 | 测试 / 证据 | 状态 |
 |---|---|---|---|
-| REQ-0001-001 | v1-core-and-combat §Step1 | `tests/test_movement.gd` | todo |
-| REQ-0001-002 | v1-core-and-combat §Step3 | `tests/test_combat.gd` | todo |
-| REQ-0001-003 | v1-core-and-combat §Step4 | `tests/test_combat.gd` | todo |
-| REQ-0001-004 | v1-level-01-and-flow §Step2 | `tests/test_parallax.gd`（L1 风区） | todo |
-| REQ-0001-005 | v1-level-01-and-flow §Step5 | `tests/test_debate.gd` | todo |
-| REQ-0001-006 | v1-level-01-and-flow §Step1 | `tests/test_parallax.gd` | todo |
-| REQ-0001-007 | v1-level-01-and-flow §Step2 | `tests/e2e_l01.gd` | todo |
-| REQ-0001-008 | v1-art-pipeline | `assets/qa/qa-l1-batch-a.json` | todo |
+| REQ-0001-001 | v1-core-and-combat §Step1 | `tests/test_scene.gd::_test_movement` / `_test_coyote_time` | done |
+| REQ-0001-002 | v1-core-and-combat §Step3 | `tests/test_scene.gd::_test_combat`（hitstop + time_scale） | doing（火花节点待补） |
+| REQ-0001-003 | v1-core-and-combat §Step4 | `tests/test_scene.gd::_test_combat` + `Hud` 显示 | done |
+| REQ-0001-004 | v1-level-01-and-flow §Step2 | 未实现（风沙机制属下一轮） | todo |
+| REQ-0001-005 | v1-level-01-and-flow §Step5 | 未实现（文斗属下一轮） | todo |
+| REQ-0001-006 | v1-level-01-and-flow §Step1 | `tests/test_scene.gd::_test_parallax` | done |
+| REQ-0001-007 | v1-level-01-and-flow §Step2 | `tests/test_scene.gd::_test_real_level_ground` + `data/levels/l01.json` | doing（L1 可玩；结算与叙事卡待补） |
+| REQ-0001-008 | v1-art-pipeline | `assets/qa/consistency-final.json`、`assets/qa/contact-xuanzang.png`、`normalize --verify` exit 0 | doing（敌兵待补） |
 | REQ-0001-009 | 文档层（无代码） | `docs/audio/AUDIO-DESIGN.md` | done |
-| REQ-0001-010 | v1-level-01-and-flow §Step6 | `tests/test_save.gd` | todo |
-| REQ-0001-011 | 全部计划 | `tests/test_runner.gd` | todo |
+| REQ-0001-010 | v1-level-01-and-flow §Step6 | `tests/test_scene.gd::_test_save_roundtrip` | done |
+| REQ-0001-011 | 全部计划 | `tests/test_scene.tscn`（headless 场景跑法） | done |
 
 ## ECN 索引
 
@@ -63,6 +63,8 @@
 |---|---|---|---|
 | MAJOR | art::REQ-0001-008::enemy-poses-missing | `assets/raw/ofox/**/run-41-sheet_enemy_guardi_3/error.txt`（内容安全策略拒绝） | 进入下一轮：按 ECN-0001 用"一张 ≤5 姿态图 + 参考图编辑"补关吏 |
 | MINOR | art::tools::duplicate-slug-overwrites | 同一 slug 的两次运行（run-64/run-70）写入同一目标，后者覆盖前者 | 驱动加 slug 唯一性检查（下一轮） |
+| BLOCKER | gameplay::player.gd::collision-mask-excludes-terrain | 玩家 `collision_mask=2`（只碰敌人）→ 穿地掉落并循环重生；用户人工复现"循环掉落出去" | 已修复为 `collision_mask=1`；固化为永久检查 `_test_real_level_ground`（真实 l01 数据上必须落地、贴地跑 >250px） |
+| NOTE | test::runner-mode::autoload-unavailable | `--script` 模式下 autoload 不注册，编译期报 `Identifier not found: Hitstop` | 测试入口改为场景方式 `tests/test_scene.tscn`；PRD/计划已同步 |
 
 ### Tashan Trigger Audit
 

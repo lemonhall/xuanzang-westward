@@ -108,7 +108,7 @@
 - 动机：塔山循环要求"证据优先"，游戏项目也必须能自动跑。
 - 范围：Godot `--headless` 下可运行的测试入口，覆盖移动、战斗、文斗、视差、存档；以及一条 L1 端到端流程。
 - 非目标：不做画面像素级比对（截图比对留待后续版本）。
-- 验收口径：`godot --headless --script tests/test_runner.gd` 退出码 0 且输出 `ALL TESTS PASSED`；导入项目时 stdout 无 `ERROR`/`SCRIPT ERROR` 行。
+- 验收口径：`godot --headless --path . tests/test_scene.tscn` 退出码 0 且输出 `ALL TESTS PASSED`；导入项目时 stdout 无 `ERROR`/`SCRIPT ERROR` 行。[已由 ECN-0001 同期修正] 测试入口必须是**场景**而不是 `--script`——`--script` 模式下 autoload 单例不注册，引用 `GameState`/`Hitstop` 的脚本连编译都过不了。
 
 ## 关卡结构（七关）
 
