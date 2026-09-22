@@ -1,0 +1,2 @@
+HTTP: 400
+{"error":{"code":400,"message":"The request was rejected by the content safety policy. Please revise the input and try again.","request_id":"4ccaeb2d-a673-4ad4-bdea-2d23e3a5421f","type":"invalid_request_error"}}

@@ -1,0 +1,85 @@
+{
+  "batch": "l1-probe",
+  "runs": [
+    {
+      "model": "gpt-image-2.5-sunburst",
+      "slug": "xuanzang-concept",
+      "run_dir": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-01-xuanzang-concept",
+      "files": [
+        {
+          "size": [
+            1024,
+            1024
+          ],
+          "transparent_pixels": 737488,
+          "transparent_ratio": 0.7033,
+          "native_alpha": true,
+          "bbox": [
+            57,
+            37,
+            992,
+            991
+          ],
+          "bbox_w": 935,
+          "bbox_h": 954,
+          "height_ratio": 0.9316,
+          "edge_clearance": {
+            "left": 57,
+            "top": 37,
+            "right": 32,
+            "bottom": 33
+          },
+          "subject_alpha_mean": 232.9,
+          "subject_alpha_max": 254,
+          "subject_pixel_ratio": 0.2967,
+          "mean_color_rgb": [
+            74,
+            58,
+            40
+          ],
+          "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-01-xuanzang-concept\\image-0.png"
+        }
+      ]
+    },
+    {
+      "model": "gpt-image-2.5-sunburst",
+      "slug": "changan-sky",
+      "run_dir": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-02-changan-sky",
+      "files": [
+        {
+          "size": [
+            1024,
+            1024
+          ],
+          "transparent_pixels": 0,
+          "transparent_ratio": 0.0,
+          "native_alpha": false,
+          "bbox": [
+            0,
+            0,
+            1024,
+            1024
+          ],
+          "bbox_w": 1024,
+          "bbox_h": 1024,
+          "height_ratio": 1.0,
+          "edge_clearance": {
+            "left": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0
+          },
+          "subject_alpha_mean": 255.0,
+          "subject_alpha_max": 255,
+          "subject_pixel_ratio": 1.0,
+          "mean_color_rgb": [
+            205,
+            182,
+            149
+          ],
+          "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-02-changan-sky\\image-0.png"
+        }
+      ]
+    }
+  ]
+}

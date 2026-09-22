@@ -1,0 +1,109 @@
+{
+  "reference": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-01-xuanzang-concept\\image-0.png",
+  "frames": [
+    {
+      "silhouette_iou": 0.2604,
+      "palette_l1": 0.3139,
+      "mean_color_drift": [
+        3.4,
+        2.7,
+        7.6
+      ],
+      "aspect_ref": 0.98,
+      "aspect_other": 0.78,
+      "aspect_drift": 0.2,
+      "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-01-xuanzang_idle_01\\image-0.png"
+    },
+    {
+      "silhouette_iou": 0.6223,
+      "palette_l1": 0.2464,
+      "mean_color_drift": [
+        -3.5,
+        -2.8,
+        2.9
+      ],
+      "aspect_ref": 0.98,
+      "aspect_other": 1.009,
+      "aspect_drift": 0.029,
+      "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-02-xuanzang_idle_02\\image-0.png"
+    },
+    {
+      "silhouette_iou": 0.5787,
+      "palette_l1": 0.2432,
+      "mean_color_drift": [
+        5.8,
+        2.3,
+        3.0
+      ],
+      "aspect_ref": 0.98,
+      "aspect_other": 1.0,
+      "aspect_drift": 0.02,
+      "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-03-xuanzang_walk_01\\image-0.png"
+    },
+    {
+      "silhouette_iou": 0.6447,
+      "palette_l1": 0.2556,
+      "mean_color_drift": [
+        0.4,
+        2.6,
+        7.2
+      ],
+      "aspect_ref": 0.98,
+      "aspect_other": 0.986,
+      "aspect_drift": 0.006,
+      "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-04-xuanzang_walk_02\\image-0.png"
+    },
+    {
+      "silhouette_iou": 0.4147,
+      "palette_l1": 0.3276,
+      "mean_color_drift": [
+        9.5,
+        7.4,
+        3.7
+      ],
+      "aspect_ref": 0.98,
+      "aspect_other": 1.007,
+      "aspect_drift": 0.027,
+      "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-05-xuanzang_run_01\\image-0.png"
+    },
+    {
+      "silhouette_iou": 0.4521,
+      "palette_l1": 0.2385,
+      "mean_color_drift": [
+        5.7,
+        6.4,
+        4.9
+      ],
+      "aspect_ref": 0.98,
+      "aspect_other": 1.019,
+      "aspect_drift": 0.039,
+      "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-06-xuanzang_run_02\\image-0.png"
+    },
+    {
+      "silhouette_iou": 0.5824,
+      "palette_l1": 0.3066,
+      "mean_color_drift": [
+        16.2,
+        16.2,
+        19.6
+      ],
+      "aspect_ref": 0.98,
+      "aspect_other": 0.907,
+      "aspect_drift": 0.073,
+      "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-07-xuanzang_jump_01\\image-0.png"
+    },
+    {
+      "silhouette_iou": 0.4465,
+      "palette_l1": 0.3032,
+      "mean_color_drift": [
+        12.6,
+        11.6,
+        12.5
+      ],
+      "aspect_ref": 0.98,
+      "aspect_other": 1.113,
+      "aspect_drift": 0.133,
+      "file": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-08-xuanzang_fall_01\\image-0.png"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "model": "openai/gpt-image-2.5-sunburst",
+  "size": "1024x1024",
+  "quality": "high",
+  "created": 1790088623,
+  "output_count": 1
+}

@@ -1,0 +1,15 @@
+{
+  "note": "探针：edits 不带 input_fidelity（2.5 不支持），带 size=1024x1024 与 background=transparent，验证参考图编辑能否同时锁人物并保留透明底。参考图先用已定版的概念图。",
+  "jobs": [
+    {
+      "name": "61",
+      "slug": "probe_edit_alpha_walk2",
+      "model": "openai/gpt-image-2.5-sunburst",
+      "quality": "high",
+      "size": "1024x1024",
+      "background": "transparent",
+      "reference": "assets/raw/ofox/gpt-image-2.5-sunburst/run-01-xuanzang-concept/image-0.png",
+      "prompt": "以参考图中的角色为唯一人物设定，保持同一个人的面容、头型、袈裟配色与补丁、锡杖形制、经笥比例、麻鞋样式完全一致，只改变姿态：提膝前行，面向画面右侧。人物全身完整入画、水平居中、脚底位于同一水平基线。输出纯透明背景的 PNG，保留真实 alpha 通道，主体以外完全透明，不要地面、投影、背景景物与画上去的透明格。风格与参考图一致：中式国风，工笔重彩结合写意水墨；画面内不出现任何文字、印章、水印、边框。"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"error":{"code":400,"message":"The request was rejected by the content safety policy. Please revise the input and try again.","request_id":"887fe810-cfad-48fc-8d5f-32adaebd2d76","type":"invalid_request_error"}}

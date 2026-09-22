@@ -1,0 +1,15 @@
+{
+  "note": "主角图 B：以 Sheet A（run-60）为参考图做 edits，5 个彼此不同的战斗/收尾姿态。人物一致性由参考图锁定，透明底由 background=transparent + size 保证。",
+  "jobs": [
+    {
+      "name": "62",
+      "slug": "sheet_xuanzang_combat5",
+      "model": "openai/gpt-image-2.5-sunburst",
+      "quality": "high",
+      "size": "1536x1024",
+      "background": "transparent",
+      "reference": "assets/raw/ofox/gpt-image-2.5-sunburst/run-60-sheet_xuanzang_move5/image-0.png",
+      "prompt": "以参考图中的角色为唯一人物设定：同一张脸、同一头型、同一套赭黄与灰褐百衲袈裟（补丁位置与配色一致）、同一根九环锡杖、同一个竹编经笥、同一双麻鞋、同一比例与朝向（面向画面右侧）。现在把这位角色画成一张姿势总表，同一张图内五个彼此不同的动作，按一行等距排列（不要格子线、不要文字、不要序号）：横挥锡杖、锡杖上撩、合十诵经、受击后仰、屈膝落地。同一个人、同一套衣饰、同一比例，大小一致、脚底同线、互不重叠。纯透明背景，真实 alpha 通道，主体以外完全透明，没有地面、投影、背景景物与画上去的透明格。风格与参考图一致：中式国风，工笔重彩结合写意水墨；画面内不出现任何文字、印章、水印、边框。"
+    }
+  ]
+}

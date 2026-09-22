@@ -1,0 +1,148 @@
+{
+  "reference": "assets\\sprites\\xuanzang\\idle_01.png",
+  "frames": [
+    {
+      "silhouette_iou": 0.2056,
+      "palette_l1": 0.3823,
+      "mean_color_drift": [
+        27.7,
+        23.3,
+        17.1
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 1.007,
+      "aspect_drift": 0.535,
+      "file": "assets\\sprites\\xuanzang\\attack_01.png"
+    },
+    {
+      "silhouette_iou": 0.3002,
+      "palette_l1": 0.2701,
+      "mean_color_drift": [
+        19.0,
+        17.1,
+        14.7
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 0.886,
+      "aspect_drift": 0.414,
+      "file": "assets\\sprites\\xuanzang\\attack_02.png"
+    },
+    {
+      "silhouette_iou": 0.785,
+      "palette_l1": 0.2524,
+      "mean_color_drift": [
+        13.8,
+        11.4,
+        10.2
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 0.453,
+      "aspect_drift": 0.019,
+      "file": "assets\\sprites\\xuanzang\\chant_01.png"
+    },
+    {
+      "silhouette_iou": 0.2378,
+      "palette_l1": 0.2811,
+      "mean_color_drift": [
+        26.7,
+        24.3,
+        22.5
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 1.054,
+      "aspect_drift": 0.582,
+      "file": "assets\\sprites\\xuanzang\\fall_01.png"
+    },
+    {
+      "silhouette_iou": 0.4054,
+      "palette_l1": 0.2592,
+      "mean_color_drift": [
+        21.5,
+        18.4,
+        15.4
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 0.809,
+      "aspect_drift": 0.337,
+      "file": "assets\\sprites\\xuanzang\\hurt_01.png"
+    },
+    {
+      "silhouette_iou": 1.0,
+      "palette_l1": 0.0,
+      "mean_color_drift": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 0.472,
+      "aspect_drift": 0.0,
+      "file": "assets\\sprites\\xuanzang\\idle_01.png"
+    },
+    {
+      "silhouette_iou": 0.2995,
+      "palette_l1": 0.1065,
+      "mean_color_drift": [
+        -3.4,
+        -2.1,
+        -1.1
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 0.781,
+      "aspect_drift": 0.309,
+      "file": "assets\\sprites\\xuanzang\\jump_01.png"
+    },
+    {
+      "silhouette_iou": 0.31,
+      "palette_l1": 0.3144,
+      "mean_color_drift": [
+        26.0,
+        23.3,
+        20.3
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 0.708,
+      "aspect_drift": 0.235,
+      "file": "assets\\sprites\\xuanzang\\land_01.png"
+    },
+    {
+      "silhouette_iou": 0.3459,
+      "palette_l1": 0.1004,
+      "mean_color_drift": [
+        3.1,
+        2.5,
+        1.7
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 0.767,
+      "aspect_drift": 0.295,
+      "file": "assets\\sprites\\xuanzang\\run_01.png"
+    },
+    {
+      "silhouette_iou": 0.4677,
+      "palette_l1": 0.0764,
+      "mean_color_drift": [
+        2.7,
+        2.3,
+        1.7
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 0.588,
+      "aspect_drift": 0.116,
+      "file": "assets\\sprites\\xuanzang\\walk_01.png"
+    },
+    {
+      "silhouette_iou": 0.339,
+      "palette_l1": 0.1044,
+      "mean_color_drift": [
+        6.8,
+        6.6,
+        5.9
+      ],
+      "aspect_ref": 0.472,
+      "aspect_other": 0.735,
+      "aspect_drift": 0.263,
+      "file": "assets\\sprites\\xuanzang\\walk_02.png"
+    }
+  ]
+}

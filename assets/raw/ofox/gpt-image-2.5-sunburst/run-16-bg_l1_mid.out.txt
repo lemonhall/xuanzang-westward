@@ -1,0 +1,2 @@
+HTTP: 200
+{"format": "PNG", "mode": "RGBA", "size": [1024, 1024], "sha256": "917ad0d979144f0c2844c7b24c708537f7230e9200d8594ba9c8daf9643dce92", "transparent_pixels": 661886, "partial_alpha_pixels": 386690, "opaque_pixels": 0, "native_transparency": true}

@@ -1,0 +1,1 @@
+{"error":{"code":null,"message":"The model 'gpt-image-2.5-sunburst' does not support the 'input_fidelity' parameter.","param":null,"request_id":"915c1ce3-0b24-4322-a8c7-8a52edaa82fa","type":"image_generation_user_error"}}

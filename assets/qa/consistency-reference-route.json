@@ -1,0 +1,18 @@
+{
+  "reference": "assets\\raw\\ofox\\gpt-image-2.5-sunburst\\run-01-xuanzang-concept\\image-0.png",
+  "frames": [
+    {
+      "silhouette_iou": 0.3083,
+      "palette_l1": 0.7559,
+      "mean_color_drift": [
+        61.0,
+        77.0,
+        97.0
+      ],
+      "aspect_ref": 0.98,
+      "aspect_other": 1.0,
+      "aspect_drift": 0.02,
+      "file": "assets\\qa\\keyed\\probe_edit_sunburst_walk.png"
+    }
+  ]
+}
