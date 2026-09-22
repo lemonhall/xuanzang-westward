@@ -30,6 +30,8 @@ func _run() -> void:
 	await _test_background_meets_the_ground()
 	await _test_background_crop_edges_stay_out_of_view()
 	await _test_ground_band_framing()
+	await _test_ground_reaches_below_the_view()
+	await _test_enemy_art_and_facing()
 
 	if failures.is_empty():
 		print("ALL TESTS PASSED")
@@ -121,7 +123,8 @@ func _test_combat() -> void:
 	var world: Dictionary = await _make_world([{ "x": 0, "y": 500, "w": 2400, "h": 200 }])
 	var player: Xuanzang = world["player"]
 	var scripted: ScriptedInput = world["input"]
-	var enemy := Guardi.new()
+	var enemy := Enemy.new()
+	enemy.actor_name = "wolf"
 	enemy.position = Vector2(player.global_position.x + 46.0, 500.0)
 	world["root"].add_child(enemy)
 	await get_tree().physics_frame
@@ -362,6 +365,56 @@ func _test_first_gap_crossing() -> void:
 	_check(player.global_position.x > next_x - 20.0, "player did not clear the first gap (x=%.1f, next platform starts at %.1f)" % [player.global_position.x, next_x])
 	root.queue_free()
 	await get_tree().physics_frame
+
+
+func _test_enemy_art_and_facing() -> void:
+	# 敌人必须用真美术（不是剪影占位），且必须朝着行进方向转头：
+	# 素材统一朝右画，向左巡逻时靠 flip_h 镜像。
+	var world: Dictionary = await _make_world([{ "x": 0, "y": 500, "w": 2400, "h": 200 }])
+	var enemy := Enemy.new()
+	enemy.actor_name = "wolf"
+	enemy.position = Vector2(1200, 500)
+	world["root"].add_child(enemy)
+	await get_tree().physics_frame
+	_check(enemy.has_art, "wolf art missing: assets/sprites/wolf/ has no frames (enemy fell back to the silhouette placeholder)")
+	var sprite := enemy.sprite_node()
+	_check(sprite != null, "enemy built no sprite")
+	if sprite == null:
+		world["root"].queue_free()
+		return
+	var animation_count := sprite.sprite_frames.get_animation_names().size()
+	_check(animation_count >= 4, "wolf sprite has only %d animations; expected idle/walk/run/attack/hurt" % animation_count)
+
+	enemy.patrol_dir = 1.0
+	await get_tree().physics_frame
+	_check(sprite.flip_h == false, "wolf facing right should not be mirrored while moving right")
+	enemy.patrol_dir = -1.0
+	await get_tree().physics_frame
+	_check(sprite.flip_h == true, "wolf did not turn around when moving left (head would point the wrong way)")
+	print("[diag] enemy: art=%s animations=%d facing flip ok" % [str(enemy.has_art), animation_count])
+	world["root"].queue_free()
+	await get_tree().physics_frame
+
+
+func _test_ground_reaches_below_the_view() -> void:
+	# 用户实测缺陷："屏幕底部的地面竟然是悬空的"。
+	# 规则：关卡自家的土必须延伸到可见下缘之外，绝不允许靠背景层去补地面。
+	var view := _visible_vertical_range()
+	var visible_bottom: float = view["bottom"]
+	var raw := FileAccess.get_file_as_string(LevelBuilder.LEVEL_PATH)
+	var data: Dictionary = JSON.parse_string(raw)
+	var checked := 0
+	for platform in data.get("platforms", []):
+		var is_ground := float(platform["y"]) >= 500.0 and float(platform["h"]) > 60.0
+		if not is_ground:
+			continue
+		checked += 1
+		var collision_bottom: float = float(platform["y"]) + float(platform["h"])
+		var fill_bottom: float = float(platform["y"]) + LevelBuilder.EARTH_FILL_HEIGHT
+		_check(collision_bottom >= visible_bottom + 20.0, "ground platform at x=%.0f ends at y=%.0f, above the visible bottom %.0f (screen bottom would float)" % [float(platform["x"]), collision_bottom, visible_bottom])
+		_check(fill_bottom >= visible_bottom + 20.0, "earth fill at x=%.0f only reaches y=%.0f, above the visible bottom %.0f" % [float(platform["x"]), fill_bottom, visible_bottom])
+	_check(checked > 0, "no ground platform found to verify")
+	print("[diag] ground coverage: %d platforms, visible bottom %.0f, collision+fill verified" % [checked, visible_bottom])
 
 
 func _test_ground_band_framing() -> void:

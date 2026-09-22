@@ -11,6 +11,10 @@ const INK_LIGHT := Color("#6B5B4A")
 const EMBER := Color("#D4762A")
 const GOLD := Color(0.83, 0.63, 0.16, 0.35)
 
+## 地面视觉填充高度：碰撞厚度由关卡数据决定（玩法），但土的**画面**必须一直
+## 延伸到屏幕下缘之外，否则会出现"地面悬空"——这是用户实测报过的缺陷。
+const EARTH_FILL_HEIGHT := 720.0
+
 var data: Dictionary = {}
 var world_width := 6400.0
 
@@ -61,9 +65,10 @@ func _make_platform(rect: Rect2) -> void:
 	body.add_child(shape)
 
 	var fill := Polygon2D.new()
+	var fill_height := maxf(rect.size.y, EARTH_FILL_HEIGHT)
 	fill.polygon = PackedVector2Array([
 		Vector2(0, 0), Vector2(rect.size.x, 0),
-		Vector2(rect.size.x, rect.size.y), Vector2(0, rect.size.y),
+		Vector2(rect.size.x, fill_height), Vector2(0, fill_height),
 	])
 	fill.color = INK
 	body.add_child(fill)
@@ -117,10 +122,12 @@ func _on_checkpoint_entered(body: Node, id: String) -> void:
 
 
 func _make_enemy(spec: Dictionary) -> void:
-	var enemy := Guardi.new()
+	var enemy := Enemy.new()
+	enemy.actor_name = String(spec.get("kind", "wolf"))
 	enemy.position = Vector2(spec["x"], spec["y"])
 	if spec.has("patrol_range"):
 		enemy.patrol_range = float(spec["patrol_range"])
+	enemy.add_to_group("enemies")
 	add_child(enemy)
 
 

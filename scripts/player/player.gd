@@ -84,42 +84,10 @@ func _build_sprite() -> void:
 
 
 func _load_frames() -> SpriteFrames:
-	var frames := SpriteFrames.new()
-	frames.remove_animation("default")
-	var by_alias := {}
-	var dir := DirAccess.open(SPRITE_DIR)
-	if dir == null:
-		push_error("sprite directory missing: %s" % SPRITE_DIR)
+	var frames := SpriteFramesLoader.load_frames(SPRITE_DIR)
+	if not frames.has_animation("idle"):
+		push_error("no frames found in %s (run tools/asset_pipeline.py)" % SPRITE_DIR)
 		frames.add_animation("idle")
-		return frames
-	for file_name in dir.get_files():
-		if not file_name.ends_with(".png"):
-			continue
-		var stem := file_name.get_basename()
-		var split := stem.rsplit("_", true, 1)
-		if split.size() != 2:
-			continue
-		var alias := split[0]
-		var texture: Texture2D = load("%s/%s" % [SPRITE_DIR, file_name])
-		# Precise animations (used by combat) and grouped animations (used by locomotion).
-		if not frames.has_animation(stem):
-			frames.add_animation(stem)
-			frames.set_animation_speed(stem, 1.0)
-			frames.set_animation_loop(stem, false)
-		frames.add_frame(stem, texture)
-		if not by_alias.has(alias):
-			by_alias[alias] = []
-		by_alias[alias].append(stem)
-	for alias in by_alias.keys():
-		var names: Array = by_alias[alias]
-		names.sort()
-		if not frames.has_animation(alias):
-			frames.add_animation(alias)
-			frames.set_animation_speed(alias, 8.0 if names.size() > 1 else 1.0)
-			frames.set_animation_loop(alias, names.size() > 1 and alias != "attack")
-		for name in names:
-			for i in frames.get_frame_count(name):
-				frames.add_frame(alias, frames.get_frame_texture(name, i))
 	return frames
 
 

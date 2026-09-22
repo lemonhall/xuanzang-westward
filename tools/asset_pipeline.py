@@ -38,10 +38,36 @@ QA_DIR = REPO / "assets" / "qa"
 # slug convention: <actor>_<alias>_<frame>
 ACTOR_SPECS = {
     "xuanzang": {"height": 430, "canvas": (512, 512), "baseline": 480},
+    # Quadrupeds: a wide canvas, and the baseline leaves room for the legs.
+    # A crouching or lunging wolf has a very different bounding-box height, so
+    # quadrupeds are normalized by body LENGTH (bbox width) instead — otherwise
+    # every crouched pose gets blown up and the character looks like it changes
+    # size from frame to frame.
+    "wolf": {"axis": "width", "size": 300, "canvas": (512, 384), "baseline": 350},
     "boss": {"height": 420, "canvas": (512, 512), "baseline": 484},
     "enemy": {"height": 300, "canvas": (384, 384), "baseline": 360},
 }
 FX_CANVAS = 256
+
+
+def spec_scale(spec: dict, subject: Image.Image) -> float:
+    """Scale factor mapping a raw subject onto the actor's canonical size.
+
+    每条腿/每帧归一到的"稳定维度"由 spec 决定：
+      * 直立角色用小围盒高度（人：待机/走/跳/受击高度都接近）；
+      * 四足动物用宽度=体长（wolf：潜行/跃扑时高度差别巨大，用高度会忽大忽小）。
+    Then clamp so the result always fits the canvas and the baseline — a pose that
+    reaches out sideways gets scaled down instead of overflowing.
+    """
+    canvas_w, canvas_h = spec["canvas"]
+    baseline = float(spec["baseline"])
+    if spec.get("axis") == "width":
+        wanted = float(spec["size"]) / float(subject.width)
+    else:
+        wanted = float(spec["height"]) / float(subject.height)
+    fits_width = float(canvas_w) / float(subject.width)
+    fits_height = baseline / float(subject.height)
+    return min(wanted, fits_width, fits_height)
 
 
 def iter_runs():
@@ -258,16 +284,25 @@ def _label_components(mask: Image.Image, min_area: int) -> list[tuple[int, int, 
     return boxes
 
 
-def normalize_sprite_from_image(subject_full: Image.Image, actor: str, alias: str, frame: str) -> Path:
-    """normalize_sprite, starting from an already-cropped subject image."""
+def normalize_sprite_from_image(subject_full: Image.Image, actor: str, alias: str, frame: str, scale: float = 0.0) -> Path:
+    """normalize_sprite, starting from an already-cropped subject image.
+
+    When `scale` is given it is used verbatim for every frame of the actor, so all
+    frames share one zoom level; only when it is omitted do we derive it from this
+    single image.
+    """
     spec = spec_for(actor)
-    target_h = spec["height"]
-    scale = target_h / subject_full.height
+    if scale <= 0.0:
+        scale = spec_scale(spec, subject_full)
     target_w = max(1, round(subject_full.width * scale))
+    target_h = max(1, round(subject_full.height * scale))
     subject = subject_full.resize((target_w, target_h), Image.LANCZOS)
     canvas_w, canvas_h = spec["canvas"]
-    if target_w > canvas_w:
-        raise SystemExit(f"subject too wide for canvas ({target_w} > {canvas_w}); check the slice bounds")
+    if target_w > canvas_w or target_h > spec["baseline"]:
+        raise SystemExit(
+            f"subject too large for canvas ({target_w}x{target_h}, canvas {canvas_w}x{canvas_h}, "
+            f"baseline {spec['baseline']}); check the slice bounds or the actor spec"
+        )
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
     canvas.alpha_composite(subject, ((canvas_w - target_w) // 2, spec["baseline"] - target_h))
     out_dir = SPRITE_DIR / actor
@@ -275,6 +310,20 @@ def normalize_sprite_from_image(subject_full: Image.Image, actor: str, alias: st
     out_path = out_dir / f"{alias}_{frame}.png"
     canvas.save(out_path)
     return out_path
+
+
+def _tight_crop(im: Image.Image, box: tuple[int, int, int, int], downsample: int) -> Image.Image:
+    """Full-resolution crop of a detected component, trimmed to its alpha box."""
+    pad = downsample * 2
+    full = (
+        max(0, box[0] * downsample - pad),
+        max(0, box[1] * downsample - pad),
+        min(im.width, box[2] * downsample + pad),
+        min(im.height, box[3] * downsample + pad),
+    )
+    crop = im.crop(full)
+    tight = crop.getchannel("A").getbbox()
+    return crop.crop(tight) if tight else crop
 
 
 def slice_sheet(
@@ -346,18 +395,9 @@ def slice_sheet(
     crop_dir.mkdir(parents=True, exist_ok=True)
     written = []
     alias_counters: dict[str, int] = {}
+
     for index, box in enumerate(ordered, start=1):
-        pad = downsample * 2
-        full = (
-            max(0, box[0] * downsample - pad),
-            max(0, box[1] * downsample - pad),
-            min(im.width, box[2] * downsample + pad),
-            min(im.height, box[3] * downsample + pad),
-        )
-        crop = im.crop(full)
-        tight = crop.getchannel("A").getbbox()
-        if tight:
-            crop = crop.crop(tight)
+        crop = _tight_crop(im, box, downsample)
         alias = aliases[index - 1] if index - 1 < len(aliases) else aliases[-1]
         alias_counters[alias] = alias_counters.get(alias, 0) + 1
         frame = f"{alias_counters[alias]:02d}"
@@ -415,7 +455,7 @@ def spec_for(actor: str) -> dict:
     raise SystemExit(f"no actor spec for '{actor}' (add it to ACTOR_SPECS)")
 
 
-def normalize_sprite(src: Path, actor: str, alias: str, frame: str) -> Path:
+def normalize_sprite(src: Path, actor: str, alias: str, frame: str, scale: float = 0.0) -> Path:
     spec = spec_for(actor)
     im = load_rgba(src)
     bbox = im.getchannel("A").getbbox()
@@ -423,14 +463,15 @@ def normalize_sprite(src: Path, actor: str, alias: str, frame: str) -> Path:
         raise SystemExit(f"empty image (no alpha): {src}")
 
     subject = im.crop(bbox)
-    target_h = spec["height"]
-    scale = target_h / subject.height
+    if scale <= 0.0:
+        scale = spec_scale(spec, subject)
     target_w = max(1, round(subject.width * scale))
+    target_h = max(1, round(subject.height * scale))
     subject = subject.resize((target_w, target_h), Image.LANCZOS)
 
     canvas_w, canvas_h = spec["canvas"]
-    if target_w > canvas_w:
-        raise SystemExit(f"subject too wide for canvas ({target_w} > {canvas_w}): {src}")
+    if target_w > canvas_w or target_h > spec["baseline"]:
+        raise SystemExit(f"subject too large for canvas ({target_w}x{target_h}) with baseline {spec['baseline']}: {src}")
 
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
     x = (canvas_w - target_w) // 2
@@ -507,9 +548,9 @@ def cmd_normalize(args) -> int:
     if args.verify:
         bad = 0
         groups: dict[tuple[str, str], list[tuple[Path, tuple[int, int, int, int]]]] = {}
-        for path in written:
-            if SPRITE_DIR not in path.parents:
-                continue
+        # Verify every normalized frame on disk, not only the ones written by this
+        # run: frames produced by `slice` must pass the same alignment gate.
+        for path in sorted(SPRITE_DIR.rglob("*.png")):
             im = Image.open(path)
             bbox = im.getchannel("A").getbbox()
             actor_alias = (path.parent.name, path.stem.rsplit("_", 1)[0])

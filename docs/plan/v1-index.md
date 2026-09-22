@@ -71,6 +71,9 @@
 | BLOCKER | art::parallax_rig.gd::cropped-edge-enters-view | 用户实测"一跳起来就露出贴图被裁剪的边"（柳枝画到贴图第 0 行） | 天空/中景/近景放大到 1.10 并重设 y（顶边 −288/−213/−223，均高于可见顶端 −177）；新增 `_test_background_crop_edges_stay_out_of_view` |
 | NOTE | test::parallax::wrap-period-per-layer | 各层缩放不同导致 repeat 周期不同，原"层间差值"断言口径失效 | 位移断言改为逐层按自身周期回绕归一化，实测残差 0 |
 | MAJOR | framing::l01::earth-band-too-tall | 用户实测"地面咖啡色土地从屏幕底部顶到屏幕中部"：地形厚度 420px + 相机偏移 110px → 土带占屏 35% | 地形厚度改 170、相机偏移改 170 → 土带 26%、脚底 74%；新增 `_test_ground_band_framing`（土带 ≤30%、脚底 60%–80%） |
+| BLOCKER | framing::l01::ground-floats-above-screen-bottom | 用户实测"屏幕底部的地面悬空"：地形削到 170px 后够不到可见下缘，只能靠背景层斑驳的土坡（该行 alpha 仅 4%–60%）补 | 地形碰撞厚度 240 + 视觉填充拉到 720（`LevelBuilder.EARTH_FILL_HEIGHT`）→ 自家土一定越过可见下缘；新增 `_test_ground_reaches_below_the_view` |
+| BLOCKER | art::wolf::size-jitter | 用户实测"狼一会儿大一会儿小"：四足动物按包围盒高度归一，潜行/跃扑被强行放大 | 四足改为按体长（宽度）归一到 300px，并加画布钳制；五帧体长一致、高度自然变化 |
+| MAJOR | art::enemy::placeholder-only | 用户实测"对手只是个占位符" | 新增 `Enemy`（美术按 actor 加载、缺图退回剪影）、`SpriteFramesLoader`（与玩家共用命名规范）、狼定版图 5 帧；新增 `_test_enemy_art_and_facing`（美术存在 + 朝向镜像） |
 
 ### Tashan Trigger Audit
 
