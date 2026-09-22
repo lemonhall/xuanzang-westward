@@ -29,6 +29,7 @@ func _run() -> void:
 	await _test_first_gap_crossing()
 	await _test_background_meets_the_ground()
 	await _test_background_crop_edges_stay_out_of_view()
+	await _test_ground_band_framing()
 
 	if failures.is_empty():
 		print("ALL TESTS PASSED")
@@ -361,6 +362,21 @@ func _test_first_gap_crossing() -> void:
 	_check(player.global_position.x > next_x - 20.0, "player did not clear the first gap (x=%.1f, next platform starts at %.1f)" % [player.global_position.x, next_x])
 	root.queue_free()
 	await get_tree().physics_frame
+
+
+func _test_ground_band_framing() -> void:
+	# 用户实测缺陷："地面那块咖啡色土地从屏幕底部顶到屏幕中部"。
+	# 构图约束：站在地面时，脚下那条土带占屏 ≤30%，角色脚底落在屏幕 60%–80% 之间。
+	var viewport_height: float = float(ProjectSettings.get_setting("display/window/size/viewport_height", 720))
+	var ground_y := _ground_line()
+	var camera_y := ground_y - ScreenShake.FOLLOW_OFFSET_Y
+	var visible_bottom := camera_y + viewport_height * 0.5
+	var earth_band := visible_bottom - ground_y
+	var ratio := earth_band / viewport_height
+	_check(ratio <= 0.30, "earth band under the ground line is %.0f px (%.0f%% of the viewport); keep it under 30%%" % [earth_band, ratio * 100.0])
+	var feet_ratio := (viewport_height * 0.5 + ScreenShake.FOLLOW_OFFSET_Y) / viewport_height
+	_check(feet_ratio >= 0.60 and feet_ratio <= 0.80, "character feet sit at %.0f%% of the screen height; expected 60%%-80%%" % (feet_ratio * 100.0))
+	print("[diag] framing: earth band %.0f px (%.0f%%), feet at %.0f%%" % [earth_band, ratio * 100.0, feet_ratio * 100.0])
 
 
 func _test_background_crop_edges_stay_out_of_view() -> void:

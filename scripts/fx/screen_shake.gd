@@ -10,10 +10,11 @@ extends Camera2D
 @export var dead_zone := 28.0
 @export var follow_speed := 6.0
 
-## The camera sits this far above the character. Level and background geometry
-## checks derive the visible vertical range from it, so it is a constant rather
-## than a magic number buried in _process.
-const FOLLOW_OFFSET_Y := 110.0
+## The camera sits this far above the character, which puts the character's feet
+## at roughly 74% of the screen height and keeps the earth band under ~27% of the
+## viewport. Level, framing and background-edge checks all derive their visible
+## range from this constant rather than from magic numbers.
+const FOLLOW_OFFSET_Y := 170.0
 
 var _amplitude := 0.0
 var _end_ms := 0

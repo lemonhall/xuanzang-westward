@@ -70,6 +70,7 @@
 | BLOCKER | art::parallax_rig.gd::node-position-overwritten | Parallax2D 的 position 由引擎按相机滚动覆写，导致垂直偏移失效、背景与地面之间出现空带 | 垂直偏移改到子精灵；新增 `_test_background_meets_the_ground`（四层内容底边必须压到地平线以下） |
 | BLOCKER | art::parallax_rig.gd::cropped-edge-enters-view | 用户实测"一跳起来就露出贴图被裁剪的边"（柳枝画到贴图第 0 行） | 天空/中景/近景放大到 1.10 并重设 y（顶边 −288/−213/−223，均高于可见顶端 −177）；新增 `_test_background_crop_edges_stay_out_of_view` |
 | NOTE | test::parallax::wrap-period-per-layer | 各层缩放不同导致 repeat 周期不同，原"层间差值"断言口径失效 | 位移断言改为逐层按自身周期回绕归一化，实测残差 0 |
+| MAJOR | framing::l01::earth-band-too-tall | 用户实测"地面咖啡色土地从屏幕底部顶到屏幕中部"：地形厚度 420px + 相机偏移 110px → 土带占屏 35% | 地形厚度改 170、相机偏移改 170 → 土带 26%、脚底 74%；新增 `_test_ground_band_framing`（土带 ≤30%、脚底 60%–80%） |
 
 ### Tashan Trigger Audit
 
