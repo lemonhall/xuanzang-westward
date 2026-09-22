@@ -37,7 +37,9 @@ QA_DIR = REPO / "assets" / "qa"
 
 # slug convention: <actor>_<alias>_<frame>
 ACTOR_SPECS = {
-    "xuanzang": {"height": 430, "canvas": (512, 512), "baseline": 480},
+    # 加宽画布（512 -> 768）是刻意的：横挥锡杖这类宽动作若超出画布就会被钳制缩放，
+    # 那正是"忽大忽小"的来源。宁可用更宽的画布，也不缩任何一个姿态。
+    "xuanzang": {"height": 430, "canvas": (768, 512), "baseline": 480},
     # Quadrupeds: a wide canvas, and the baseline leaves room for the legs.
     # A crouching or lunging wolf has a very different bounding-box height, so
     # quadrupeds are normalized by body LENGTH (bbox width) instead — otherwise
@@ -56,18 +58,44 @@ def spec_scale(spec: dict, subject: Image.Image) -> float:
     每条腿/每帧归一到的"稳定维度"由 spec 决定：
       * 直立角色用小围盒高度（人：待机/走/跳/受击高度都接近）；
       * 四足动物用宽度=体长（wolf：潜行/跃扑时高度差别巨大，用高度会忽大忽小）。
-    Then clamp so the result always fits the canvas and the baseline — a pose that
-    reaches out sideways gets scaled down instead of overflowing.
+    No clamping here: if a pose reaches out sideways we widen the canvas instead of
+    shrinking the pose, so every frame keeps the same zoom level.
     """
-    canvas_w, canvas_h = spec["canvas"]
-    baseline = float(spec["baseline"])
     if spec.get("axis") == "width":
-        wanted = float(spec["size"]) / float(subject.width)
-    else:
-        wanted = float(spec["height"]) / float(subject.height)
-    fits_width = float(canvas_w) / float(subject.width)
-    fits_height = baseline / float(subject.height)
-    return min(wanted, fits_width, fits_height)
+        return float(spec["size"]) / float(subject.width)
+    return float(spec["height"]) / float(subject.height)
+
+
+def feet_anchor_x(subject: Image.Image, band: float = 0.12) -> float:
+    """Alpha-weighted centre of the bottom band of a subject.
+
+    Anchoring horizontally on the feet/legs instead of the bounding box keeps the
+    body in place when a pose stretches a staff or a tail sideways — bounding-box
+    centring is what makes a character appear to shift between frames.
+    """
+    alpha = subject.getchannel("A")
+    w, h = subject.size
+    y0 = max(0, int(h * (1.0 - band)))
+    px = alpha.load()
+    total = 0.0
+    weighted = 0.0
+    for y in range(y0, h):
+        for x in range(w):
+            a = px[x, y]
+            if a <= 8:
+                continue
+            total += a
+            weighted += a * x
+    if total <= 0.0:
+        return w * 0.5
+    return weighted / total
+
+
+def _paste_subject(canvas: Image.Image, subject: Image.Image, baseline: int) -> None:
+    anchor = feet_anchor_x(subject)
+    x = int(round(canvas.width * 0.5 - anchor))
+    y = int(baseline - subject.height)
+    canvas.alpha_composite(subject, (x, y))
 
 
 def iter_runs():
@@ -300,11 +328,11 @@ def normalize_sprite_from_image(subject_full: Image.Image, actor: str, alias: st
     canvas_w, canvas_h = spec["canvas"]
     if target_w > canvas_w or target_h > spec["baseline"]:
         raise SystemExit(
-            f"subject too large for canvas ({target_w}x{target_h}, canvas {canvas_w}x{canvas_h}, "
-            f"baseline {spec['baseline']}); check the slice bounds or the actor spec"
+            f"subject too large for the fixed canvas ({target_w}x{target_h}, canvas {canvas_w}x{canvas_h}, "
+            f"baseline {spec['baseline']}); slice_sheet should have clamped this pose"
         )
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    canvas.alpha_composite(subject, ((canvas_w - target_w) // 2, spec["baseline"] - target_h))
+    _paste_subject(canvas, subject, int(spec["baseline"]))
     out_dir = SPRITE_DIR / actor
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{alias}_{frame}.png"
@@ -391,18 +419,57 @@ def slice_sheet(
             "inspect the debug overlay before re-running"
         )
 
+    # 间距闸门：同一行相邻姿态的水平间隙必须 ≥ 图宽 3%。
+    # 实测教训：狼图第一行三个姿态包围盒水平重叠 104px / 16px，只是"没碰到"才切得开——
+    # 这种图必须重做，而不是靠几像素的运气。
+    min_gap = int(im.width * 0.03)
+    tight: list[dict] = []
+    for row in row_groups:
+        row_sorted = sorted(row, key=lambda b: b[0])
+        for a, b in zip(row_sorted, row_sorted[1:]):
+            gap = (b[0] - a[2]) * downsample
+            if gap < min_gap:
+                tight.append({"left_box_x": a[0] * downsample, "right_box_x": b[0] * downsample, "gap": gap})
+    if tight:
+        detail = ", ".join(f"gap={t['gap']}px at x={t['right_box_x']}" for t in tight)
+        raise SystemExit(
+            f"poses are too close to slice safely ({detail}); need >= {min_gap}px. "
+            "Regenerate the sheet with fewer poses per row and an explicit "
+            "\"留出一个身位以上空白\" instruction."
+        )
+
     crop_dir = QA_DIR / "sheet-crops"
     crop_dir.mkdir(parents=True, exist_ok=True)
     written = []
     alias_counters: dict[str, int] = {}
+    spec = spec_for(actor)
+    canvas_w, canvas_h = spec["canvas"]
+    margin = 12.0
 
+    # 一张图只用一个缩放比：以中立姿态（阅读顺序第一帧）为基准，水平锚定用脚/爪质心。
+    # 逐帧各自缩放正是"忽大忽小"的根因，这里绝不再犯。
+    crops = [_tight_crop(im, box, downsample) for box in ordered]
+    sheet_scale = spec_scale(spec, crops[0])
+    clamped: list[dict] = []
+    scales_used: dict[str, float] = {}
     for index, box in enumerate(ordered, start=1):
-        crop = _tight_crop(im, box, downsample)
+        crop = crops[index - 1]
         alias = aliases[index - 1] if index - 1 < len(aliases) else aliases[-1]
         alias_counters[alias] = alias_counters.get(alias, 0) + 1
         frame = f"{alias_counters[alias]:02d}"
         crop.save(crop_dir / f"{actor}_{alias}_{frame}_raw.png")
-        written.append(str(normalize_sprite_from_image(crop, actor, alias, frame).relative_to(REPO)))
+        scale = sheet_scale
+        fit = min(
+            (canvas_w - 2.0 * margin) / float(crop.width),
+            float(spec["baseline"]) / float(crop.height),
+        )
+        if fit < scale:
+            # One pose reaches outside the fixed canvas; clamp only that pose and
+            # report it, so an outlier is visible instead of silently resizing all.
+            clamped.append({"frame": f"{alias}_{frame}", "sheet_scale": round(sheet_scale, 5), "used_scale": round(fit, 5)})
+            scale = fit
+        scales_used[f"{alias}_{frame}"] = round(scale, 5)
+        written.append(str(normalize_sprite_from_image(crop, actor, alias, frame, scale).relative_to(REPO)))
 
     overlay = im.copy()
     overlay.putalpha(alpha.point(lambda v: max(48, v // 3)))
@@ -415,9 +482,27 @@ def slice_sheet(
     debug_path = QA_DIR / f"slice-debug-{src.parent.name}.png"
     debug.save(debug_path)
 
+    # 防抖动账本：同一角色的每一帧用了哪个缩放比，必须完全一致。
+    (QA_DIR / f"normalization-{actor}.json").write_text(
+        json.dumps(
+            {
+                "actor": actor,
+                "sheet_scale": round(sheet_scale, 5),
+                "frames": scales_used,
+                "clamped": clamped,
+                "unique_scales": sorted(set(scales_used.values())),
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
     return {
         "source": str(src.relative_to(REPO)),
         "components": len(ordered),
+        "sheet_scale": round(sheet_scale, 5),
+        "clamped_frames": clamped,
         "frames": written,
         "debug_overlay": str(debug_path.relative_to(REPO)),
         "boxes": [list(b) for b in ordered],
@@ -461,23 +546,17 @@ def normalize_sprite(src: Path, actor: str, alias: str, frame: str, scale: float
     bbox = im.getchannel("A").getbbox()
     if not bbox:
         raise SystemExit(f"empty image (no alpha): {src}")
-
     subject = im.crop(bbox)
     if scale <= 0.0:
         scale = spec_scale(spec, subject)
     target_w = max(1, round(subject.width * scale))
     target_h = max(1, round(subject.height * scale))
     subject = subject.resize((target_w, target_h), Image.LANCZOS)
-
     canvas_w, canvas_h = spec["canvas"]
     if target_w > canvas_w or target_h > spec["baseline"]:
-        raise SystemExit(f"subject too large for canvas ({target_w}x{target_h}) with baseline {spec['baseline']}: {src}")
-
+        raise SystemExit(f"subject too large for the fixed canvas ({target_w}x{target_h}) with baseline {spec['baseline']}: {src}")
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    x = (canvas_w - target_w) // 2
-    y = spec["baseline"] - target_h
-    canvas.alpha_composite(subject, (x, y))
-
+    _paste_subject(canvas, subject, int(spec["baseline"]))
     out_dir = SPRITE_DIR / actor
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{alias}_{frame}.png"
@@ -547,19 +626,45 @@ def cmd_normalize(args) -> int:
 
     if args.verify:
         bad = 0
-        groups: dict[tuple[str, str], list[tuple[Path, tuple[int, int, int, int]]]] = {}
-        # Verify every normalized frame on disk, not only the ones written by this
-        # run: frames produced by `slice` must pass the same alignment gate.
+        actors: dict[str, list[tuple[Path, tuple[int, int, int, int], float]]] = {}
+        # Verify every frame on disk, not only the ones written by this run: the
+        # invariants are "feet on the baseline" and "feet centred horizontally",
+        # plus one shared zoom level per actor (the cure for 忽大忽小).
         for path in sorted(SPRITE_DIR.rglob("*.png")):
-            im = Image.open(path)
+            im = Image.open(path).convert("RGBA")
             bbox = im.getchannel("A").getbbox()
-            actor_alias = (path.parent.name, path.stem.rsplit("_", 1)[0])
-            groups.setdefault(actor_alias, []).append((path, bbox))
-        for (actor, alias), items in sorted(groups.items()):
-            heights = {b[3] - b[1] for _p, b in items}
-            tops = {b[1] for _p, b in items}
-            ok = len(heights) == 1 and len(tops) == 1
-            print(f"[verify] {actor}/{alias}: frames={len(items)} top={sorted(tops)} height={sorted(heights)} {'OK' if ok else 'MISALIGNED'}")
+            if not bbox:
+                print(f"[verify] {path.name}: EMPTY (no alpha)")
+                bad += 1
+                continue
+            # Anchor measured the same way it was pasted: bottom band of the subject,
+            # mapped into canvas coordinates.
+            subject = im.crop(bbox)
+            anchor_on_canvas = float(bbox[0]) + feet_anchor_x(subject)
+            actors.setdefault(path.parent.name, []).append((path, bbox, anchor_on_canvas))
+        for actor, items in sorted(actors.items()):
+            spec = spec_for(actor)
+            baseline = float(spec["baseline"])
+            centre = float(spec["canvas"][0]) * 0.5
+            bottoms = {b[3] for _p, b, _a in items}
+            offsets = [round(a - centre, 1) for _p, _b, a in items]
+            baseline_ok = all(abs(b - baseline) <= 1 for b in bottoms)
+            anchor_ok = all(abs(o) <= 6.0 for o in offsets)
+            sizes = sorted({(b[2] - b[0], b[3] - b[1]) for _p, b, _a in items})
+            print(
+                f"[verify] {actor}: frames={len(items)} baseline={sorted(bottoms)} "
+                f"anchor_offsets={offsets} sizes={sizes} {'OK' if baseline_ok and anchor_ok else 'MISALIGNED'}"
+            )
+            if not (baseline_ok and anchor_ok):
+                bad += 1
+
+        # 防抖动闸门：同一角色必须只用一个缩放比，且不得有被钳制的帧。
+        for ledger in sorted(QA_DIR.glob("normalization-*.json")):
+            data = json.loads(ledger.read_text(encoding="utf-8"))
+            scales = data.get("unique_scales", [])
+            clamped = data.get("clamped", [])
+            ok = len(scales) == 1 and not clamped
+            print(f"[verify] zoom-lock {data.get('actor')}: scales={scales} clamped={len(clamped)} {'OK' if ok else 'JITTER RISK'}")
             if not ok:
                 bad += 1
         if bad:

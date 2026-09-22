@@ -74,6 +74,8 @@
 | BLOCKER | framing::l01::ground-floats-above-screen-bottom | 用户实测"屏幕底部的地面悬空"：地形削到 170px 后够不到可见下缘，只能靠背景层斑驳的土坡（该行 alpha 仅 4%–60%）补 | 地形碰撞厚度 240 + 视觉填充拉到 720（`LevelBuilder.EARTH_FILL_HEIGHT`）→ 自家土一定越过可见下缘；新增 `_test_ground_reaches_below_the_view` |
 | BLOCKER | art::wolf::size-jitter | 用户实测"狼一会儿大一会儿小"：四足动物按包围盒高度归一，潜行/跃扑被强行放大 | 四足改为按体长（宽度）归一到 300px，并加画布钳制；五帧体长一致、高度自然变化 |
 | MAJOR | art::enemy::placeholder-only | 用户实测"对手只是个占位符" | 新增 `Enemy`（美术按 actor 加载、缺图退回剪影）、`SpriteFramesLoader`（与玩家共用命名规范）、狼定版图 5 帧；新增 `_test_enemy_art_and_facing`（美术存在 + 朝向镜像） |
+| BLOCKER | art::sprites::2.5-policy-blocks-multipose | 2.5 对多姿态请求稳定拒绝（6/12 姿态必拒、4 帧行走被拒、挥杖 3 次被拒） | ECN-0003：精灵动画全部改用 Seedream + 本地抠图；背景继续用 2.5 |
+| BLOCKER | art::normalization::per-frame-scaling-jitter | 用户实测玄奘与狼"忽大忽小"：逐帧各自缩放 + 窄画布触发钳制 | 一张图一个缩放比（取中立姿态）、脚/爪质心锚定、画布宁宽不缩（玄奘 768×512）；新增缩放账本与 `zoom-lock` 闸门（`unique_scales` 单一 + `clamped` 为空） |
 
 ### Tashan Trigger Audit
 

@@ -101,6 +101,7 @@
 - 范围：主角全套动作、敌人、Boss、视差背景层、特效素材、道具图标；统一风格串（见 ART-BIBLE）。
 - 非目标：不使用其它生图供应商；不做人工重绘。
 - 验收口径：每张原始图都留存 `request.json` + `inspection.json`（格式/尺寸/alpha 统计）；主角与敌人素材必须"真实 alpha"（透明像素占比 > 15%，且主体 alpha 均值 > 200）；不透明背景层必须为 1024×1024 且无文字水印。[已由 ECN-0001 变更] 追加两条：④ 同一角色的所有姿态必须来自"定版图 + 参考图条件生成"（`/v1/images/edits`，带 `background=transparent` 与显式 `size`），不得逐帧独立文生图；⑤ 每批产出必须留档与定版参考图的一致性度量（`tools/consistency_check.py`，含轮廓 IoU 与色板差异），离群帧重生成而非凑用。
+- [已由 ECN-0003 变更] 模型分工：**背景/场景/特效底图**用 `openai/gpt-image-2.5-sunburst`；**所有精灵动画**改用 `volcengine/doubao-seedream-5.0-pro` + **本地抠图**（`tools/matte.py`：纯品红底 + 色度键控 + 颜色解混）。同一角色**一张图内出全部姿态**（Seedream 实测可接受 12 姿态总表，2.5 必拒）。归一化硬规则：同一张图**一个缩放比**、水平锚定**脚/爪质心**、垂直锚定**脚底基线**、**画布宁宽不缩**；`assets/qa/normalization-<actor>.json` 的 `unique_scales` 只能有一个且 `clamped` 必须为空。
 
 ### REQ-0001-009 音频设计（先文案，后实现）
 

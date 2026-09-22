@@ -25,7 +25,9 @@ const KNOCKBACK := 240.0
 const FALL_RESPAWN_DELAY := 0.6
 
 const SPRITE_DIR := "res://assets/sprites/xuanzang"
-const TEXTURE_CANVAS := 512.0
+## Normalized frame canvas (see tools/asset_pipeline.py ACTOR_SPECS). It is wider
+## than it is tall so that wide poses (a swung staff) never get scaled down.
+const CANVAS := Vector2(768.0, 512.0)
 const FEET_Y := 480.0
 const ON_SCREEN_HEIGHT := 150.0
 
@@ -72,13 +74,13 @@ func _build_collision() -> void:
 
 
 func _build_sprite() -> void:
-	var scale_factor := ON_SCREEN_HEIGHT / (TEXTURE_CANVAS - 32.0)
+	var scale_factor := ON_SCREEN_HEIGHT / (CANVAS.y - 32.0)
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = _load_frames()
 	_sprite.scale = Vector2(scale_factor, scale_factor)
 	# The canvas bottom sits 32 px below the character's feet; keep the feet on
 	# the node origin so collision, camera and platforms all agree.
-	_sprite.offset = Vector2(0, -(TEXTURE_CANVAS * 0.5 - (TEXTURE_CANVAS - FEET_Y)))
+	_sprite.offset = Vector2(0, -(CANVAS.y * 0.5 - (CANVAS.y - FEET_Y)))
 	add_child(_sprite)
 	_sprite.play("idle")
 

@@ -1,0 +1,20 @@
+{
+  "size": [
+    2496,
+    1664
+  ],
+  "key_color": [
+    239,
+    1,
+    184
+  ],
+  "inner": 40.0,
+  "outer": 120.0,
+  "keyed_pixels": 3142848,
+  "keyed_ratio": 0.7567,
+  "soft_edge_pixels": 35748,
+  "residual_fringe_pixels": 1,
+  "residual_fringe_ratio": 0.0,
+  "input": "assets\\raw\\ofox\\doubao-seedream-5.0-pro\\run-91-sheet_wolf_seed5\\image-0.png",
+  "output": "assets\\qa\\matte\\wolf_seed5.png"
+}

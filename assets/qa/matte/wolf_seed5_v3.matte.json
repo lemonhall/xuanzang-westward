@@ -1,0 +1,25 @@
+{
+  "size": [
+    2496,
+    1664
+  ],
+  "key_color": [
+    253,
+    12,
+    226
+  ],
+  "inner": 40.0,
+  "outer": 120.0,
+  "alpha_floor": 40,
+  "keyed_pixels": 3185028,
+  "keyed_ratio": 0.7669,
+  "soft_edge_pixels": 33398,
+  "residual_fringe_pixels": 24,
+  "residual_fringe_ratio": 6e-06,
+  "speckles_removed": 1724,
+  "speckle_pixels_removed": 1813,
+  "min_area": 64,
+  "block": 2,
+  "input": "assets\\raw\\ofox\\doubao-seedream-5.0-pro\\run-93-sheet_wolf_seed5_v3\\image-0.png",
+  "output": "assets\\qa\\matte\\wolf_seed5_v3.png"
+}
