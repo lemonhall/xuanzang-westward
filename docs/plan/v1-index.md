@@ -65,6 +65,9 @@
 | MINOR | art::tools::duplicate-slug-overwrites | 同一 slug 的两次运行（run-64/run-70）写入同一目标，后者覆盖前者 | 驱动加 slug 唯一性检查（下一轮） |
 | BLOCKER | gameplay::player.gd::collision-mask-excludes-terrain | 玩家 `collision_mask=2`（只碰敌人）→ 穿地掉落并循环重生；用户人工复现"循环掉落出去" | 已修复为 `collision_mask=1`；固化为永久检查 `_test_real_level_ground`（真实 l01 数据上必须落地、贴地跑 >250px） |
 | NOTE | test::runner-mode::autoload-unavailable | `--script` 模式下 autoload 不注册，编译期报 `Identifier not found: Hitstop` | 测试入口改为场景方式 `tests/test_scene.tscn`；PRD/计划已同步 |
+| BLOCKER | level::l01.json::unreachable-platforms | 用户实测"高台跳不上去"：平台抬升 140px > 跳高 103px | 高台改到 y=478（抬升 82px）；新增 `_test_level_is_reachable` 连通性 + 孤儿平台检查，负向对照（改回 140px）已验证会报红 |
+| BLOCKER | level::l01.json::gaps-wider-than-jump | 用户实测"深坑跳不过去"：坑宽 100–120px > 可跨越上限 93.8px | 坑宽统一收到 72px；新增 `_test_level_gaps_are_jumpable` 与 `_test_first_gap_crossing` |
+| BLOCKER | art::parallax_rig.gd::node-position-overwritten | Parallax2D 的 position 由引擎按相机滚动覆写，导致垂直偏移失效、背景与地面之间出现空带 | 垂直偏移改到子精灵；新增 `_test_background_meets_the_ground`（四层内容底边必须压到地平线以下） |
 
 ### Tashan Trigger Audit
 

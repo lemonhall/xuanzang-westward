@@ -24,6 +24,10 @@ func _run() -> void:
 	await _test_parallax()
 	await _test_save_roundtrip()
 	await _test_real_level_ground()
+	await _test_level_gaps_are_jumpable()
+	await _test_level_is_reachable()
+	await _test_first_gap_crossing()
+	await _test_background_meets_the_ground()
 
 	if failures.is_empty():
 		print("ALL TESTS PASSED")
@@ -228,3 +232,179 @@ func _test_real_level_ground() -> void:
 	_check(player.is_on_floor(), "player lost the ground while running")
 	root.queue_free()
 	await get_tree().physics_frame
+
+
+func _test_level_gaps_are_jumpable() -> void:
+	# 物理极限：滞空 0.590s × 220px/s = 129.8px，再减去角色宽度 36px。
+	# 关卡里的坑必须留出余量，否则玩家会撞上"跳不过去的深坑"。
+	var reach := Xuanzang.max_jump_distance() - Xuanzang.body_width()
+	var budget := reach * 0.85
+	var raw := FileAccess.get_file_as_string(LevelBuilder.LEVEL_PATH)
+	var data: Dictionary = JSON.parse_string(raw)
+	_check(not data.is_empty(), "l01.json unreadable for the gap check")
+	var ground: Array = []
+	for platform in data.get("platforms", []):
+		if float(platform["y"]) >= 500.0:
+			ground.append(platform)
+	ground.sort_custom(func(a, b): return float(a["x"]) < float(b["x"]))
+	for i in range(ground.size() - 1):
+		var left_edge: float = float(ground[i]["x"]) + float(ground[i]["w"])
+		var right_edge: float = float(ground[i + 1]["x"])
+		var gap: float = right_edge - left_edge
+		_check(gap <= budget, "gap %.0f px between platform %d and %d exceeds the jumpable budget %.0f px" % [gap, i, i + 1, budget])
+
+
+func _test_level_is_reachable() -> void:
+	# 关卡可达性：把平台建成图，按物理极限（跳高 103px、水平跨距 129.8px）做连通性检查，
+	# 保证从出生点平台能一路跳到终点平台。"高台跳不上去"就是这条检查要抓的缺陷。
+	var raw := FileAccess.get_file_as_string(LevelBuilder.LEVEL_PATH)
+	var data: Dictionary = JSON.parse_string(raw)
+	var spans: Array = []
+	for platform in data.get("platforms", []):
+		spans.append({
+			"left": float(platform["x"]),
+			"right": float(platform["x"]) + float(platform["w"]),
+			"top": float(platform["y"]),
+		})
+	var height_budget := Xuanzang.max_jump_height() * 0.85
+	var distance_budget := Xuanzang.max_jump_distance() * 0.85
+
+	var spawn: Array = data.get("spawn", [0, 0])
+	var start_index := _platform_under(spans, float(spawn[0]), float(spawn[1]))
+	var goal: Dictionary = data.get("goal", {})
+	var goal_index := _platform_under(spans, float(goal.get("x", 0.0)), float(goal.get("y", 0.0)))
+	_check(start_index >= 0, "spawn point is not above any platform")
+	_check(goal_index >= 0, "goal is not above any platform")
+	if start_index < 0 or goal_index < 0:
+		return
+
+	var reached := { start_index: true }
+	var queue: Array[int] = [start_index]
+	while not queue.is_empty():
+		var current: int = queue.pop_front()
+		for i in range(spans.size()):
+			if reached.has(i):
+				continue
+			if _can_hop(spans[current], spans[i], height_budget, distance_budget):
+				reached[i] = true
+				queue.append(i)
+	_check(reached.has(goal_index), "goal unreachable with current jump physics (reached %d of %d platforms)" % [reached.size(), spans.size()])
+	# 反作弊：不允许"孤儿平台"——任何一块地形都必须能从出生点跳上去，
+	# 否则就是玩家看到的"高台跳不上去"这种缺陷。
+	if reached.size() != spans.size():
+		var orphans: Array[String] = []
+		for i in range(spans.size()):
+			if not reached.has(i):
+				orphans.append("(x=%.0f..%.0f, top=%.0f)" % [spans[i]["left"], spans[i]["right"], spans[i]["top"]])
+		_check(false, "unreachable platforms with current jump physics: %s" % ", ".join(orphans))
+
+
+func _platform_under(spans: Array, x: float, y: float) -> int:
+	var best := -1
+	for i in range(spans.size()):
+		var span: Dictionary = spans[i]
+		if x >= float(span["left"]) - 8.0 and x <= float(span["right"]) + 8.0:
+			if float(span["top"]) >= y - 12.0:
+				if best == -1 or float(span["top"]) < float(spans[best]["top"]):
+					best = i
+	return best
+
+
+func _can_hop(from_span: Dictionary, to_span: Dictionary, height_budget: float, distance_budget: float) -> bool:
+	var rise: float = float(from_span["top"]) - float(to_span["top"])
+	if rise > height_budget:
+		return false
+	var gap := 0.0
+	if float(to_span["left"]) > float(from_span["right"]):
+		gap = float(to_span["left"]) - float(from_span["right"])
+	elif float(from_span["left"]) > float(to_span["right"]):
+		gap = float(from_span["left"]) - float(to_span["right"])
+	return gap <= distance_budget
+
+
+func _test_first_gap_crossing() -> void:
+	# 用户报过的缺陷："玄奘跳不过去"。这里用真实关卡数据真的跳一次第一个坑。
+	var root := Node2D.new()
+	get_tree().root.add_child(root)
+	var level := LevelBuilder.new()
+	root.add_child(level)
+	level.load_data(LevelBuilder.LEVEL_PATH)
+	var ground: Array = []
+	for platform in level.data.get("platforms", []):
+		if float(platform["y"]) >= 500.0:
+			ground.append(platform)
+	ground.sort_custom(func(a, b): return float(a["x"]) < float(b["x"]))
+	_check(ground.size() >= 2, "level needs at least two ground platforms for the gap test")
+	if ground.size() < 2:
+		return
+	var edge_x: float = float(ground[0]["x"]) + float(ground[0]["w"])
+	var next_x: float = float(ground[1]["x"])
+
+	level.data["spawn"] = [edge_x - 90.0, 480.0]
+	var spawn: Vector2 = level.build()
+	var player := Xuanzang.new()
+	player.position = spawn
+	root.add_child(player)
+	var scripted := ScriptedInput.new()
+	player.input_source = scripted
+	scripted.axis = 1.0
+
+	var jumped := false
+	for i in range(120):
+		if not jumped and player.is_on_floor() and player.global_position.x >= edge_x - 45.0:
+			scripted.jump_pressed = true
+			scripted.jump_held = true
+			jumped = true
+		await get_tree().physics_frame
+	_check(jumped, "never reached the platform edge to attempt the jump")
+	_check(player.is_on_floor(), "player was still airborne after the jump window (y=%.1f)" % player.global_position.y)
+	_check(player.global_position.x > next_x - 20.0, "player did not clear the first gap (x=%.1f, next platform starts at %.1f)" % [player.global_position.x, next_x])
+	root.queue_free()
+	await get_tree().physics_frame
+
+
+func _test_background_meets_the_ground() -> void:
+	# 反作弊：不允许"背景悬在地面上方、中间留一条空带"——这是人工发现过的缺陷。
+	var rig := ParallaxRig.new()
+	get_tree().root.add_child(rig)
+	rig.build()
+	await get_tree().process_frame
+	var ground_y := _ground_line()
+	for layer in rig.layers:
+		var sprite: Sprite2D = layer.get_child(0)
+		var texture: Texture2D = sprite.texture
+		var bottom_row := _content_bottom_row(texture, 16)
+		var half := float(texture.get_height()) * 0.5
+		# The authored vertical offset lives on the sprite; the Parallax2D node's own
+		# position is engine-owned scroll state.
+		var screen_bottom: float = sprite.position.y + (float(bottom_row) - half) * sprite.scale.y
+		var image := texture.get_image()
+		print("[diag] %s tex=%s img=%s bottom_row=%d pos_y=%.0f scale=%.2f screen_bottom=%.0f  a@1023=%s a@900=%s a@700=%s a@600=%s" % [
+			layer.name, str(texture.get_size()), str(image.get_size()), bottom_row, sprite.position.y, sprite.scale.y, screen_bottom,
+			str(image.get_pixel(512, image.get_height() - 1).a), str(image.get_pixel(512, 900).a),
+			str(image.get_pixel(512, 700).a), str(image.get_pixel(512, 600).a)])
+		_check(screen_bottom >= ground_y - 8.0, "layer %s only reaches y=%.0f, leaving a gap above the ground line %.0f" % [layer.name, screen_bottom, ground_y])
+	rig.queue_free()
+	await get_tree().process_frame
+
+
+func _ground_line() -> float:
+	var raw := FileAccess.get_file_as_string(LevelBuilder.LEVEL_PATH)
+	var data: Dictionary = JSON.parse_string(raw)
+	var ground_y := 560.0
+	for platform in data.get("platforms", []):
+		if float(platform["y"]) >= 500.0 and float(platform["y"]) < ground_y + 1.0:
+			ground_y = float(platform["y"])
+	return ground_y
+
+
+func _content_bottom_row(texture: Texture2D, threshold: int) -> int:
+	var image := texture.get_image()
+	if image.is_empty():
+		return texture.get_height()
+	var step := 4
+	for y in range(image.get_height() - 1, -1, -step):
+		for x in range(0, image.get_width(), step):
+			if image.get_pixel(x, y).a * 255.0 > float(threshold):
+				return y
+	return 0

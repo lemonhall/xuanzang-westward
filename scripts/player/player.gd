@@ -289,3 +289,20 @@ func _respawn() -> void:
 		global_position = level.respawn_position()
 		velocity = Vector2.ZERO
 		push_warning("[player] 掉出世界，已回到最近存档点 %s" % GameState.checkpoint_id)
+
+
+static func max_jump_distance() -> float:
+	## Horizontal reach of a full-speed jump, straight from the movement constants.
+	## Used to keep level gaps honest: PRD 要求关卡不能设计出跳不过去的坑。
+	var rise_time: float = absf(JUMP_VELOCITY) / GRAVITY
+	var fall_time: float = absf(JUMP_VELOCITY) / (GRAVITY * FALL_GRAVITY_MULT)
+	return (rise_time + fall_time) * MAX_SPEED
+
+
+static func max_jump_height() -> float:
+	## Apex height of a full jump: v² / 2g = 610² / 3600 ≈ 103 px (≈3.2 tiles).
+	return (JUMP_VELOCITY * JUMP_VELOCITY) / (2.0 * GRAVITY)
+
+
+static func body_width() -> float:
+	return 36.0
