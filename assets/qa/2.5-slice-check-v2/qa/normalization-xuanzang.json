@@ -1,0 +1,14 @@
+{
+  "actor": "xuanzang",
+  "sheet_scale": 0.88477,
+  "frames": {
+    "idle_01": 0.88477,
+    "walk_01": 0.88477,
+    "chant_01": 0.88477,
+    "staff_01": 0.88477
+  },
+  "clamped": [],
+  "unique_scales": [
+    0.88477
+  ]
+}

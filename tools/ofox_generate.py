@@ -77,6 +77,14 @@ def choose_route(preference: str) -> str:
     return "proxy"
 
 
+def _sanitized(payload: dict) -> dict:
+    """Audit copy of the payload with base64 reference images replaced by a note."""
+    safe = dict(payload)
+    if "input_images" in safe:
+        safe["input_images"] = [f"<{len(item)} chars base64 omitted>" for item in payload["input_images"]]
+    return safe
+
+
 def _post_with_retry(session: requests.Session, url: str, attempts: int = 3, **kwargs) -> requests.Response:
     """POST with a bounded retry for transport-level resets only.
 
@@ -182,10 +190,24 @@ def run_job(job: dict, key: str) -> dict:
             payload["background"] = background
         if job.get("quality"):
             payload["quality"] = job["quality"]
+        if job.get("input_images"):
+            # Seedream 原生支持参考图（实测 HTTP 200）：一张参考图 + 一个姿态，
+            # 既没有"第几格"的位置歧义，也能只重做某一帧。
+            encoded = []
+            for rel in job["input_images"]:
+                ref = (REPO / rel).resolve()
+                if not ref.exists():
+                    return {"slug": job["slug"], "status": "failed", "reason": f"input image missing: {ref}"}
+                encoded.append("data:image/png;base64," + base64.b64encode(ref.read_bytes()).decode("ascii"))
+            payload["input_images"] = encoded
         if job.get("provider"):
             payload["extra_body"] = {"provider": job["provider"]}
         (run_dir / "request.json").write_text(
-            json.dumps({"endpoint": GENERATIONS, "payload": payload}, indent=2, ensure_ascii=False),
+            json.dumps(
+                {"endpoint": GENERATIONS, "payload": _sanitized(payload)},
+                indent=2,
+                ensure_ascii=False,
+            ),
             encoding="utf-8",
         )
         response = _post_with_retry(session, GENERATIONS, headers=headers, json=payload, timeout=(30, 900))

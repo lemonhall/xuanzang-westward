@@ -1,15 +1,15 @@
 {
   "actor": "wolf",
-  "sheet_scale": 0.36014,
+  "sheet_scale": 0.55762,
   "frames": {
-    "idle_01": 0.36014,
-    "walk_01": 0.36014,
-    "run_01": 0.36014,
-    "attack_01": 0.36014,
-    "hurt_01": 0.36014
+    "idle_01": 0.55762,
+    "walk_01": 0.55762,
+    "run_01": 0.55762
   },
   "clamped": [],
   "unique_scales": [
-    0.36014
-  ]
+    0.55762
+  ],
+  "source_model": "openai/gpt-image-2.5-sunburst",
+  "pipeline": "tools/promote_latest_sprites.py"
 }

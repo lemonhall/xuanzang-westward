@@ -1,0 +1,14 @@
+{
+  "actor": "wolf",
+  "sheet_scale": 0.55762,
+  "frames": {
+    "idle_01": 0.55762,
+    "walk_01": 0.55762,
+    "run_01": 0.55762,
+    "jump_01": 0.55762
+  },
+  "clamped": [],
+  "unique_scales": [
+    0.55762
+  ]
+}

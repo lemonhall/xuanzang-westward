@@ -1,0 +1,13 @@
+{
+  "format": "PNG",
+  "mode": "RGBA",
+  "size": [
+    1536,
+    1024
+  ],
+  "sha256": "947718f9e237d3f7007e04d9591e167100a320c61dfb361cd661b8521d406b4e",
+  "transparent_pixels": 1179748,
+  "partial_alpha_pixels": 393116,
+  "opaque_pixels": 0,
+  "native_transparency": true
+}

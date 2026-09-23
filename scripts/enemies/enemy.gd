@@ -10,6 +10,7 @@ const SPRITE_CANVAS := 384.0
 ## 300 px of body length inside its canvas). Quadruped frames keep one zoom level,
 ## so the in-game scale is a constant ratio rather than a fit-to-height.
 const REFERENCE_LENGTH := 300.0
+const HURT_DURATION := 0.18
 
 @export var actor_name := "wolf"
 @export var patrol_speed := 60.0
@@ -29,6 +30,7 @@ var has_art := false
 var _alert := false
 
 var _flash := 0.0
+var _hurt_time := 0.0
 var _sprite: AnimatedSprite2D
 var _fallback: Node2D
 
@@ -107,6 +109,7 @@ func _build_hurt_box() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_hurt_time = maxf(0.0, _hurt_time - delta)
 	if _flash > 0.0:
 		_flash = maxf(0.0, _flash - delta)
 		modulate = Color(1.0, 1.0, 1.0) if _flash <= 0.0 else Color(2.2, 2.2, 2.2)
@@ -146,8 +149,8 @@ func _closest_xuanzang() -> Node2D:
 func _apply_animation() -> void:
 	if _sprite:
 		_sprite.flip_h = patrol_dir < 0.0
-		if _sprite.animation.begins_with("hurt") == false and _sprite.animation != "attack":
-			var wanted := "walk" if absf(velocity.x) > 4.0 else "idle"
+		if _hurt_time <= 0.0 and _sprite.animation != "attack":
+			var wanted := "run" if _alert and _sprite.sprite_frames.has_animation("run") else "walk" if absf(velocity.x) > 4.0 else "idle"
 			if _sprite.sprite_frames.has_animation(wanted) and _sprite.animation != wanted:
 				_sprite.play(wanted)
 
@@ -157,6 +160,7 @@ func take_hit(damage: int, direction: float) -> void:
 		return
 	hp -= damage
 	_flash = HIT_FLASH
+	_hurt_time = HURT_DURATION
 	velocity = Vector2(direction * 180.0, -140.0)
 	if _sprite and _sprite.sprite_frames.has_animation("hurt"):
 		_sprite.play("hurt")

@@ -1,0 +1,14 @@
+{
+  "actor": "xuanzang",
+  "sheet_scale": 0.92077,
+  "frames": {
+    "jump_01": 0.92077,
+    "fall_01": 0.92077,
+    "land_01": 0.92077,
+    "hurt_01": 0.92077
+  },
+  "clamped": [],
+  "unique_scales": [
+    0.92077
+  ]
+}

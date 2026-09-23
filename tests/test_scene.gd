@@ -21,6 +21,7 @@ func _run() -> void:
 	await _test_movement()
 	await _test_coyote_time()
 	await _test_combat()
+	await _test_action_states()
 	await _test_parallax()
 	await _test_save_roundtrip()
 	await _test_real_level_ground()
@@ -136,6 +137,42 @@ func _test_combat() -> void:
 	_check(enemy.hp < hp_before, "attack did not damage the enemy (hp %d -> %d)" % [hp_before, enemy.hp])
 	_check(Hitstop.last_duration >= 0.06 and Hitstop.last_duration <= 0.09, "hitstop %.3f outside [0.06, 0.09]" % Hitstop.last_duration)
 	_check(Engine.time_scale == 1.0, "Engine.time_scale not restored (%.2f)" % Engine.time_scale)
+	for i in range(20):
+		await get_tree().physics_frame
+	_check(enemy.sprite_node().animation != "hurt", "enemy remained in hurt animation after its recovery window")
+	world["root"].queue_free()
+	await get_tree().physics_frame
+
+
+func _test_action_states() -> void:
+	var world: Dictionary = await _make_world([{ "x": 0, "y": 500, "w": 2400, "h": 200 }])
+	var player: Xuanzang = world["player"]
+	var scripted: ScriptedInput = world["input"]
+	GameState.focus = 20
+	# J must enter and leave a finite attack state even when there is no target.
+	scripted.attack_pressed = true
+	await get_tree().physics_frame
+	_check(player.state == Xuanzang.State.ATTACK, "J did not enter ATTACK state")
+	_check(GameState.focus == 12, "J did not spend 8 focus (remaining %d)" % GameState.focus)
+	for i in range(30):
+		await get_tree().physics_frame
+	_check(player.state != Xuanzang.State.ATTACK, "J left the player stuck in ATTACK state")
+	_check(player.sprite_node() == null or player.sprite_node().animation == "idle", "J left a stale attack animation")
+	player.take_damage(player.global_position.x - 1.0)
+	for i in range(40):
+		await get_tree().physics_frame
+	_check(player.state != Xuanzang.State.HURT, "player remained in HURT state after the recovery animation")
+
+	# K must stop the player, show CHANT state, and restore focus after the channel.
+	GameState.focus = 0
+	scripted.chant_held = true
+	for i in range(55):
+		await get_tree().physics_frame
+	_check(player.state == Xuanzang.State.CHANT, "K did not enter CHANT state")
+	_check(GameState.focus == Xuanzang.CHANT_FOCUS_GAIN, "K did not restore focus after channel")
+	scripted.chant_held = false
+	await get_tree().physics_frame
+	_check(player.state == Xuanzang.State.IDLE, "releasing K did not leave CHANT state")
 	world["root"].queue_free()
 	await get_tree().physics_frame
 

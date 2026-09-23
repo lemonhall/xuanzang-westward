@@ -702,6 +702,71 @@ def cmd_normalize(args) -> int:
             canonical_actors = set(json.loads(registry.read_text(encoding="utf-8")).get("actors", {}).keys())
         except json.JSONDecodeError:
             canonical_actors = set()
+
+    # 单姿态 run（<actor>_<alias>_<frame>）按角色分组：同一角色仍只允许一个缩放比，
+    # 以 idle 为锚点，这样"逐张参考图生成"也不会出现忽大忽小。
+    sprite_jobs: dict[str, list[dict]] = {}
+    for _model, run_dir, slug in iter_runs():
+        if slug.startswith(("probe_", "sheet_", "bg_", "fx_", "item_")):
+            continue
+        parts = slug.split("_")
+        if len(parts) < 3:
+            continue
+        images = sorted(run_dir.glob("image-*.png"))
+        if not images:
+            continue
+        actor = "_".join(parts[:-2])
+        sprite_jobs.setdefault(actor, []).append(
+            {"alias": parts[-2], "frame": parts[-1], "src": images[0], "slug": slug}
+        )
+
+    scales_used: dict[str, float] = {}
+    clamped_frames: list[dict] = []
+    for actor, jobs in sorted(sprite_jobs.items()):
+        if actor in canonical_actors and not getattr(args, "allow_canonical", False):
+            print(f"[normalize] SKIP {actor}: canonical actor (pass --allow-canonical to rebuild it from single-pose runs)")
+            continue
+        spec = spec_for(actor)
+        anchor = next((j for j in jobs if j["alias"] == "idle"), jobs[0])
+        anchor_image = load_rgba(anchor["src"])
+        anchor_box = anchor_image.getchannel("A").getbbox()
+        anchor_scale = spec_scale(spec, anchor_image.crop(anchor_box)) if anchor_box else 1.0
+        for job in sorted(jobs, key=lambda j: (j["alias"], j["frame"])):
+            image = load_rgba(job["src"])
+            box = image.getchannel("A").getbbox()
+            if not box:
+                continue
+            subject = image.crop(box)
+            scale = anchor_scale
+            fit = min(
+                (spec["canvas"][0] - 24.0) / float(subject.width),
+                float(spec["baseline"]) / float(subject.height),
+            )
+            if fit < scale:
+                clamped_frames.append({"frame": f"{job['alias']}_{job['frame']}", "sheet_scale": round(anchor_scale, 5), "used_scale": round(fit, 5)})
+                scale = fit
+            scales_used[f"{job['alias']}_{job['frame']}"] = round(scale, 5)
+            if dry_run:
+                continue
+            out = normalize_sprite(job["src"], actor, job["alias"], job["frame"], scale)
+            written.append(out)
+        if scales_used:
+            (QA_DIR / f"normalization-{actor}.json").write_text(
+                json.dumps(
+                    {
+                        "actor": actor,
+                        "sheet_scale": round(anchor_scale, 5),
+                        "anchor": f"{anchor['alias']}_{anchor['frame']}",
+                        "frames": scales_used,
+                        "clamped": clamped_frames,
+                        "unique_scales": sorted(set(scales_used.values())),
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
     for _model, run_dir, slug in iter_runs():
         src_images = sorted(run_dir.glob("image-*.png"))
         if not src_images:
@@ -823,6 +888,7 @@ def main() -> int:
     p_norm = sub.add_parser("normalize")
     p_norm.add_argument("--verify", action="store_true")
     p_norm.add_argument("--dry-run", action="store_true", help="verify only; never write files")
+    p_norm.add_argument("--allow-canonical", action="store_true", help="also rebuild canonical actors from single-pose runs")
     p_norm.set_defaults(func=cmd_normalize)
 
     p_verify = sub.add_parser("verify", help="read-only gate check (never writes)")

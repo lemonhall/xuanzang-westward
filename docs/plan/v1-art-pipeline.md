@@ -16,13 +16,15 @@ REQ-0001-008（美术资产全部由 OFOX 生成）。
 ## Acceptance
 
 1. `python tools/asset_pipeline.py qa --batch l1-batch-a` 退出码 0，且 `assets/qa/qa-l1-batch-a.json` 中所有精灵图 `native_alpha=true`、`transparent_ratio > 0.15`。
-2. `python tools/asset_pipeline.py normalize --verify` 退出码 0，且同一 actor/alias 的各帧 `bbox top` 与 `bbox height` 唯一（即完全对齐）。
+2. `python tools/asset_pipeline.py verify` 与 `python tools/asset_pipeline.py normalize --verify` 均退出码 0，且正式目录的同一 actor 使用单一缩放比、脚底基线一致、来源账本无多余帧。
 3. 每个 `assets/raw/ofox/**/run-*/` 目录都含 `request.json`（prompt 全文可追溯）。
 4. 背景层（`bg_*`）为 1024×1024 不透明 PNG，且不含人物。
+5. `tools/promote_latest_sprites.py` 幂等运行后，Godot `_test_sprite_canvas_matches_spec` 仍通过，玄奘正式帧为 1024×768、狼正式帧为 512×384。
 
 ## Files
 
 - 新增：`tools/generate_assets.ps1`、`tools/asset_pipeline.py`、`tools/requirements.txt`
+- 新增：`tools/promote_latest_sprites.py`（GPT Image 2.5 透明总表的正式提升入口）
 - 新增：`assets/manifests/l1-probe.json`、`assets/manifests/l1-assets-batch-a.json`
 - 产出：`assets/raw/ofox/gpt-image-2.5-sunburst/run-*`、`assets/sprites/**`、`assets/backgrounds/l1/**`、`assets/fx/**`、`assets/qa/**`
 
@@ -34,6 +36,7 @@ REQ-0001-008（美术资产全部由 OFOX 生成）。
 4. 运行 `qa`，产出 `qa-l1-batch-a.json` 与对照图。
 5. 运行 `normalize --verify`，产出对齐后的精灵帧。
 6. 定稿：把规范化产物接入 Godot（AnimatedSprite2D / SpriteFrames）。
+7. 按 ECN-0004 执行最新 GPT Image 2.5 透明总表提升，归档旧帧、重导入并跑 Godot headless 回归。
 
 ## Risks
 

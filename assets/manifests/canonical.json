@@ -1,17 +1,23 @@
 {
-  "note": "每个角色的唯一素材来源。rebuild_sprites.py 只从这里重建，其它 run 一律视为历史档案。更新素材时先改这里，再跑一次重建。",
+  "version": 2,
+  "note": "正式精灵由最新 GPT Image 2.5 Sunburst 透明总表提升脚本登记；旧的 Seedream 帧只留在 assets/raw/superseded/，不会再被重建脚本混入。",
+  "pipeline": "tools/promote_latest_sprites.py",
+  "model": "openai/gpt-image-2.5-sunburst",
   "actors": {
     "xuanzang": {
-      "sheet": "assets/raw/ofox/doubao-seedream-5.0-pro/run-99-sheet_xuanzang_seed12_v5/image-0.png",
-      "aliases": ["idle", "walk", "walk", "walk", "walk", "jump", "land", "attack", "attack", "attack", "chant", "hurt"],
-      "rows": 3,
-      "dilate": 3
+      "sources": [
+        "assets/raw/ofox/gpt-image-2.5-sunburst/run-107-sheet_xuanzang_safe4_grid_forward_staff/image-0.png",
+        "assets/raw/ofox/gpt-image-2.5-sunburst/run-111-sheet_xuanzang_air_ground_recoil_2x2/image-0.png"
+      ],
+      "frames": ["idle", "walk", "attack", "chant", "jump", "fall", "land", "hurt"],
+      "scale": 0.88477
     },
     "wolf": {
-      "sheet": "assets/raw/ofox/doubao-seedream-5.0-pro/run-95-sheet_wolf_seed5_v4/image-0.png",
-      "aliases": ["idle", "walk", "run", "attack", "hurt"],
-      "rows": 3,
-      "dilate": 3
+      "sources": [
+        "assets/raw/ofox/gpt-image-2.5-sunburst/run-110-sheet_wolf_more_poses_2x2_spaced/image-0.png"
+      ],
+      "frames": ["idle", "walk", "run"],
+      "scale": 0.55762
     }
   }
 }

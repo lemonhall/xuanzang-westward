@@ -71,7 +71,9 @@ def rebuild_actor(actor: str, entry: dict) -> dict:
     sheet = REPO / entry["sheet"]
     if not sheet.exists():
         raise SystemExit(f"canonical sheet missing for {actor}: {sheet}")
-    matte_path = QA / "matte" / f"{actor}-canonical.png"
+    # 抠图放在以角色命名的子目录里：切片工具按"输入文件的父目录名"给裁剪图分目录，
+    # 若两个角色共用同一个父目录，裁剪图会互相覆盖（实测踩过）。
+    matte_path = QA / "matte" / actor / "canonical.png"
     matte_path.parent.mkdir(parents=True, exist_ok=True)
 
     im = Image.open(sheet)
@@ -103,7 +105,19 @@ def main() -> int:
 
     if not CANONICAL.exists():
         raise SystemExit(f"canonical registry missing: {CANONICAL}")
-    registry = json.loads(CANONICAL.read_text(encoding="utf-8"))["actors"]
+    registry_doc = json.loads(CANONICAL.read_text(encoding="utf-8"))
+    if registry_doc.get("pipeline") == "tools/promote_latest_sprites.py":
+        promote_spec = importlib.util.spec_from_file_location("promote_latest_sprites", REPO / "tools" / "promote_latest_sprites.py")
+        promote_mod = importlib.util.module_from_spec(promote_spec)
+        promote_spec.loader.exec_module(promote_mod)
+        print("[rebuild] canonical registry selects latest GPT Image 2.5 promotion pipeline")
+        result = promote_mod.main()
+        if result != 0:
+            return result
+        if not args.skip_godot:
+            subprocess.run([str(GODOT), "--headless", "--path", str(REPO), "--import"], check=True)
+        return 0
+    registry = registry_doc["actors"]
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     archived = archive_derived(stamp)

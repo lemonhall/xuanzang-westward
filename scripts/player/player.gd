@@ -18,6 +18,8 @@ const JUMP_BUFFER := 0.12
 const ATTACK_COST := 8
 const ATTACK_FOCUS_GAIN := 12
 const INVULN_TIME := 0.5
+const HURT_DURATION := 0.24
+const LAND_DURATION := 0.12
 const ATTACK_ACTIVE := Vector2(0.16, 0.30)   # start / end of the hit window
 const ATTACK_TOTAL := 0.34
 const COMBO_WINDOW := 0.45
@@ -44,10 +46,15 @@ const TEXTURE_HEIGHT := 430.0
 ## （约屏幕高度的 26%）；碰撞体随之自动等比例变大。
 const ON_SCREEN_HEIGHT := 225.0
 
-enum State { IDLE, RUN, JUMP, FALL, ATTACK, HURT, CHANT }
+enum State { IDLE, RUN, JUMP, FALL, LAND, ATTACK, HURT, CHANT }
 
 signal attacked(hit_point: Vector2, damage: int)
 signal damaged
+signal attack_started
+signal chant_started
+signal chant_progress_changed(progress: float)
+signal chant_completed(amount: int)
+signal action_feedback(message: String)
 
 var input_source: InputSource = KeyboardInput.new()
 var state: State = State.IDLE
@@ -65,6 +72,8 @@ var _camera: Node
 var _hit_consumed := false
 var _respawn_cooldown := 0.0
 var _chant_time := 0.0
+var _hurt_time := 0.0
+var _land_time := 0.0
 var _walk_phase := 0.0
 
 
@@ -114,6 +123,8 @@ func _load_frames() -> SpriteFrames:
 func _physics_process(delta: float) -> void:
 	_invuln = maxf(0.0, _invuln - delta)
 	_respawn_cooldown = maxf(0.0, _respawn_cooldown - delta)
+	_hurt_time = maxf(0.0, _hurt_time - delta)
+	_land_time = maxf(0.0, _land_time - delta)
 	_coyote = maxf(0.0, _coyote - delta)
 	_buffer = maxf(0.0, _buffer - delta)
 
@@ -126,6 +137,8 @@ func _physics_process(delta: float) -> void:
 	if state == State.ATTACK:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta * 0.6)
 	elif state == State.CHANT:
+		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
+	elif state == State.LAND:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 	else:
 		if absf(axis) > 0.01:
@@ -141,7 +154,7 @@ func _physics_process(delta: float) -> void:
 	var gravity := GRAVITY * (FALL_GRAVITY_MULT if velocity.y > 0.0 else 1.0)
 	velocity.y += gravity * delta
 
-	if _buffer > 0.0 and _coyote > 0.0 and state != State.ATTACK and state != State.HURT:
+	if _buffer > 0.0 and _coyote > 0.0 and state != State.ATTACK and state != State.HURT and state != State.CHANT:
 		velocity.y = JUMP_VELOCITY
 		_buffer = 0.0
 		_coyote = 0.0
@@ -161,25 +174,42 @@ func _physics_process(delta: float) -> void:
 func _world_bounds() -> void:
 	# Keep the character inside the level horizontally so it cannot walk out of
 	# the level data (platforms are authored, not endless).
-	global_position.x = clampf(global_position.x, 40.0, 6360.0)
+	var max_x := 6360.0
+	var level := get_tree().get_first_node_in_group("level")
+	if level and level.get("world_width") != null:
+		max_x = maxf(80.0, float(level.get("world_width")) - 40.0)
+	global_position.x = clampf(global_position.x, 40.0, max_x)
 
 
 func _update_state(delta: float) -> void:
 	if state == State.HURT:
-		if not _sprite.is_playing():
-			state = State.IDLE
+		if _hurt_time <= 0.0:
+			_set_state(State.IDLE)
 		return
 	if state == State.ATTACK:
 		return
-	if input_source.is_chant_pressed() and is_on_floor():
+	if state == State.LAND:
+		if _land_time <= 0.0:
+			_set_state(State.IDLE)
+		return
+	if is_on_floor() and (state == State.JUMP or state == State.FALL):
+		_land_time = LAND_DURATION
+		_set_state(State.LAND)
+		return
+	var axis := input_source.get_move_axis()
+	if input_source.is_chant_pressed() and is_on_floor() and absf(axis) <= 0.01 and absf(velocity.x) <= 12.0:
 		_set_state(State.CHANT)
 		_chant_time += delta
+		chant_progress_changed.emit(clampf(_chant_time / CHANT_CHANNEL, 0.0, 1.0))
 		if _chant_time >= CHANT_CHANNEL:
 			_chant_time = 0.0
 			GameState.gain_focus(CHANT_FOCUS_GAIN)
+			chant_completed.emit(CHANT_FOCUS_GAIN)
 			print("[player] 诵经完成，心念 +%d（当前 %d）" % [CHANT_FOCUS_GAIN, GameState.focus])
 		return
-	_chant_time = 0.0
+	if _chant_time > 0.0:
+		_chant_time = 0.0
+		chant_progress_changed.emit(0.0)
 	if not is_on_floor():
 		_set_state(State.JUMP if velocity.y < 0.0 else State.FALL)
 	elif absf(velocity.x) > 12.0:
@@ -217,7 +247,10 @@ func _set_state(next: State) -> void:
 			_play("jump")
 		State.FALL:
 			_play("fall", ["jump"])
+		State.LAND:
+			_play("land", ["idle"])
 		State.CHANT:
+			chant_started.emit()
 			_play("chant", ["idle"])
 		State.HURT:
 			_play("hurt", ["idle"])
@@ -241,23 +274,39 @@ func _handle_attack(delta: float) -> void:
 			_query_hit()
 			_hit_consumed = true
 		if _attack_time >= ATTACK_TOTAL:
-			_attack_time = -1.0
-			_last_attack_end = Time.get_ticks_msec() / 1000.0
-			state = State.IDLE
+			_end_attack()
 		return
 	if not input_source.is_attack_just_pressed():
 		return
+	if state == State.HURT or state == State.LAND:
+		action_feedback.emit("J：受击/落地硬直中")
+		return
+	if state == State.CHANT:
+		action_feedback.emit("J：先松开 K，再站定挥杖")
+		return
+	if not is_on_floor():
+		action_feedback.emit("J：落地后才能挥杖")
+		return
 	if GameState.focus < ATTACK_COST:
+		action_feedback.emit("J：心念不足，需要 8")
 		return
 	if not GameState.spend_focus(ATTACK_COST):
+		action_feedback.emit("J：心念不足，需要 8")
 		return
 	var now := Time.get_ticks_msec() / 1000.0
 	_attack_index = 1 if now - _last_attack_end <= COMBO_WINDOW else 0
 	_attack_time = 0.0
 	_hit_consumed = false
-	state = State.ATTACK
+	_set_state(State.ATTACK)
+	attack_started.emit()
 	velocity.x = _facing * ATTACK_LUNGE
-	_sprite.play("attack_0%d" % (_attack_index + 1))
+	_play("attack_0%d" % (_attack_index + 1), ["attack"])
+
+
+func _end_attack() -> void:
+	_attack_time = -1.0
+	_last_attack_end = Time.get_ticks_msec() / 1000.0
+	_set_state(State.IDLE)
 
 
 func _query_hit() -> void:
@@ -281,8 +330,9 @@ func _query_hit() -> void:
 			attacked.emit(point, 1)
 			GameState.gain_focus(ATTACK_FOCUS_GAIN)
 			Hitstop.freeze(0.07)
-			if _camera and _camera.has_method("shake"):
-				_camera.shake(5.0, 0.2)
+			var camera := _get_camera()
+			if camera and camera.has_method("shake"):
+				camera.shake(5.0, 0.2)
 			break
 
 
@@ -298,14 +348,52 @@ func take_damage(from_x: float) -> void:
 	if _invuln > 0.0 or state == State.HURT:
 		return
 	_invuln = INVULN_TIME
+	_attack_time = -1.0
+	_hit_consumed = true
+	_hurt_time = HURT_DURATION
+	_land_time = 0.0
 	GameState.damage_composure(1)
 	damaged.emit()
 	velocity = Vector2(KNOCKBACK * signf(global_position.x - from_x), -220.0)
-	_sprite.play("hurt")
-	state = State.HURT
+	_set_state(State.HURT)
 	Hitstop.freeze(0.08)
-	if _camera and _camera.has_method("shake"):
-		_camera.shake(6.0, 0.25)
+	var camera := _get_camera()
+	if camera and camera.has_method("shake"):
+		camera.shake(6.0, 0.25)
+
+
+func sprite_node() -> AnimatedSprite2D:
+	## Exposed for tests and HUD hooks; the sprite is assembled at runtime.
+	return _sprite
+
+
+func state_label() -> String:
+	match state:
+		State.IDLE:
+			return "待机"
+		State.RUN:
+			return "行走"
+		State.JUMP:
+			return "跳起"
+		State.FALL:
+			return "下落"
+		State.LAND:
+			return "落地"
+		State.ATTACK:
+			return "挥杖"
+		State.HURT:
+			return "受击"
+		State.CHANT:
+			return "诵经"
+	return "未知"
+
+
+func _get_camera() -> Node:
+	# Main creates the camera after the player. Resolve lazily so hit feedback is
+	# still wired in the real scene, instead of silently losing J's shake effect.
+	if not is_instance_valid(_camera):
+		_camera = get_tree().get_first_node_in_group("player_camera")
+	return _camera
 
 
 func _respawn() -> void:
