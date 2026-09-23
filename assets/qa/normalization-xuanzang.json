@@ -1,20 +1,14 @@
 {
   "actor": "xuanzang",
-  "sheet_scale": 0.88477,
+  "sheet_scale": 0.93682,
   "frames": {
-    "idle_01": 0.88477,
-    "walk_01": 0.88477,
-    "attack_01": 0.88477,
-    "chant_01": 0.88477,
-    "jump_01": 0.88477,
-    "fall_01": 0.88477,
-    "land_01": 0.88477,
-    "hurt_01": 0.88477
+    "walk_01": 0.93682,
+    "walk_02": 0.93682,
+    "walk_03": 0.93682,
+    "walk_04": 0.93682
   },
   "clamped": [],
   "unique_scales": [
-    0.88477
-  ],
-  "source_model": "openai/gpt-image-2.5-sunburst",
-  "pipeline": "tools/promote_latest_sprites.py"
+    0.93682
+  ]
 }
