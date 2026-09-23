@@ -27,9 +27,14 @@ const FALL_RESPAWN_DELAY := 0.6
 const SPRITE_DIR := "res://assets/sprites/xuanzang"
 ## Normalized frame canvas (see tools/asset_pipeline.py ACTOR_SPECS). It is wider
 ## than it is tall so that wide poses (a swung staff) never get scaled down.
-const CANVAS := Vector2(768.0, 512.0)
-const FEET_Y := 480.0
-const ON_SCREEN_HEIGHT := 150.0
+const CANVAS := Vector2(1024.0, 768.0)
+const FEET_Y := 736.0
+## 角色在贴图里的高度（与 tools/asset_pipeline.py 的 ACTOR_SPECS.height 对应）。
+## 屏幕尺寸必须由它换算，而不是由画布高度——画布留了余量给高姿态。
+const TEXTURE_HEIGHT := 430.0
+## 角色在屏幕上的身高。用户实测反馈"玄奘整体太小了"，从 150 px 提到 190 px
+## （约屏幕高度的 26%）；碰撞体随之自动等比例变大。
+const ON_SCREEN_HEIGHT := 190.0
 
 enum State { IDLE, RUN, JUMP, FALL, ATTACK, HURT, CHANT }
 
@@ -74,13 +79,12 @@ func _build_collision() -> void:
 
 
 func _build_sprite() -> void:
-	var scale_factor := ON_SCREEN_HEIGHT / (CANVAS.y - 32.0)
+	var scale_factor := ON_SCREEN_HEIGHT / TEXTURE_HEIGHT
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = _load_frames()
 	_sprite.scale = Vector2(scale_factor, scale_factor)
-	# The canvas bottom sits 32 px below the character's feet; keep the feet on
-	# the node origin so collision, camera and platforms all agree.
-	_sprite.offset = Vector2(0, -(CANVAS.y * 0.5 - (CANVAS.y - FEET_Y)))
+	# 贴图里脚底位于 FEET_Y 行；把这一行对齐到节点原点，碰撞/相机/地形才对得上。
+	_sprite.offset = Vector2(0, CANVAS.y * 0.5 - FEET_Y)
 	add_child(_sprite)
 	_sprite.play("idle")
 

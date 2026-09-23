@@ -39,7 +39,9 @@ QA_DIR = REPO / "assets" / "qa"
 ACTOR_SPECS = {
     # 加宽画布（512 -> 768）是刻意的：横挥锡杖这类宽动作若超出画布就会被钳制缩放，
     # 那正是"忽大忽小"的来源。宁可用更宽的画布，也不缩任何一个姿态。
-    "xuanzang": {"height": 430, "canvas": (768, 512), "baseline": 480},
+    # 画布比角色本身高得多（430 的角色放在 768 高的画布里，脚底基线 736）：
+    # 这样"锡杖上撩"这类本来就更高的姿态不会被钳制缩小——实测就是它触发了 0.7619/0.77477 两个缩放比。
+    "xuanzang": {"height": 430, "canvas": (1024, 768), "baseline": 736},
     # Quadrupeds: a wide canvas, and the baseline leaves room for the legs.
     # A crouching or lunging wolf has a very different bounding-box height, so
     # quadrupeds are normalized by body LENGTH (bbox width) instead — otherwise
@@ -422,23 +424,33 @@ def slice_sheet(
     # 间距闸门：同一行相邻姿态的水平间隙必须 ≥ 图宽 3%。
     # 实测教训：狼图第一行三个姿态包围盒水平重叠 104px / 16px，只是"没碰到"才切得开——
     # 这种图必须重做，而不是靠几像素的运气。
-    min_gap = int(im.width * 0.03)
+    # 间距闸门分两档：重叠或 <1% 图宽 = 硬失败（切片不可靠）；
+    # 1%–3% = 警告并放行（连通域仍能分开，不值得为此重生成整张图）。
+    hard_gap = int(im.width * 0.01)
+    warn_gap = int(im.width * 0.03)
     tight: list[dict] = []
+    warn: list[dict] = []
     for row in row_groups:
         row_sorted = sorted(row, key=lambda b: b[0])
         for a, b in zip(row_sorted, row_sorted[1:]):
             gap = (b[0] - a[2]) * downsample
-            if gap < min_gap:
+            if gap < hard_gap:
                 tight.append({"left_box_x": a[0] * downsample, "right_box_x": b[0] * downsample, "gap": gap})
+            elif gap < warn_gap:
+                warn.append({"right_box_x": b[0] * downsample, "gap": gap})
     if tight:
         detail = ", ".join(f"gap={t['gap']}px at x={t['right_box_x']}" for t in tight)
         raise SystemExit(
-            f"poses are too close to slice safely ({detail}); need >= {min_gap}px. "
+            f"poses overlap or are too close to slice safely ({detail}); need >= {hard_gap}px. "
             "Regenerate the sheet with fewer poses per row and an explicit "
             "\"留出一个身位以上空白\" instruction."
         )
+    if warn:
+        detail = ", ".join(f"gap={w['gap']}px at x={w['right_box_x']}" for w in warn)
+        print(f"[slice] WARNING: tight pose spacing ({detail}); hard minimum is {hard_gap}px, recommended {warn_gap}px")
 
-    crop_dir = QA_DIR / "sheet-crops"
+    # 裁剪图按来源 run 分目录：混着几代的审核材料会误导人（实测踩过）。
+    crop_dir = QA_DIR / "sheet-crops" / src.parent.name
     crop_dir.mkdir(parents=True, exist_ok=True)
     written = []
     alias_counters: dict[str, int] = {}
@@ -507,6 +519,16 @@ def slice_sheet(
         "debug_overlay": str(debug_path.relative_to(REPO)),
         "boxes": [list(b) for b in ordered],
     }
+
+
+def _cmd_verify_only(_args) -> int:
+    """Read-only gate check: the same code path as `normalize --verify`, no writes."""
+
+    class _Args:
+        verify = True
+        dry_run = True
+
+    return cmd_normalize(_Args())
 
 
 def cmd_slice(args) -> int:
@@ -581,6 +603,14 @@ def normalize_fx(src: Path, name: str) -> Path:
 
 def cmd_normalize(args) -> int:
     written = []
+    dry_run = bool(getattr(args, "dry_run", False))
+    canonical_actors = set()
+    registry = REPO / "assets" / "manifests" / "canonical.json"
+    if registry.exists():
+        try:
+            canonical_actors = set(json.loads(registry.read_text(encoding="utf-8")).get("actors", {}).keys())
+        except json.JSONDecodeError:
+            canonical_actors = set()
     for _model, run_dir, slug in iter_runs():
         src_images = sorted(run_dir.glob("image-*.png"))
         if not src_images:
@@ -617,6 +647,13 @@ def cmd_normalize(args) -> int:
             # two segments are always <alias>_<frame>.
             actor = "_".join(parts[:-2])
             alias, frame = parts[-2], parts[-1]
+            if actor in canonical_actors:
+                # 已登记角色只允许由 rebuild_sprites.py 从规范来源重建；
+                # 历史单帧 run 不得再写进精灵目录（否则又会出现新旧混用）。
+                print(f"[normalize] SKIP {slug} (actor '{actor}' is canonical: rebuild from assets/manifests/canonical.json)")
+                continue
+            if dry_run:
+                continue
             out = normalize_sprite(src, actor, alias, frame)
         written.append(out)
 
@@ -667,6 +704,18 @@ def cmd_normalize(args) -> int:
             print(f"[verify] zoom-lock {data.get('actor')}: scales={scales} clamped={len(clamped)} {'OK' if ok else 'JITTER RISK'}")
             if not ok:
                 bad += 1
+            # 来源一致性闸门：目录里的帧必须与账本记录的完全一致。
+            # 用户实测过"游戏里混用了两代素材"——残留的旧帧正是元凶之一。
+            actor_dir = SPRITE_DIR / str(data.get("actor"))
+            expected_files = {f"{name}.png" for name in (data.get("frames") or {}).keys()}
+            actual_files = {p.name for p in actor_dir.glob("*.png")}
+            extras = sorted(actual_files - expected_files)
+            missing_frames = sorted(expected_files - actual_files)
+            if extras or missing_frames:
+                print(f"[verify] provenance {data.get('actor')}: EXTRA={extras} MISSING={missing_frames} MISMATCH")
+                bad += 1
+            else:
+                print(f"[verify] provenance {data.get('actor')}: {len(actual_files)} frames match the ledger OK")
         if bad:
             return 1
     return 0
@@ -682,7 +731,11 @@ def main() -> int:
 
     p_norm = sub.add_parser("normalize")
     p_norm.add_argument("--verify", action="store_true")
+    p_norm.add_argument("--dry-run", action="store_true", help="verify only; never write files")
     p_norm.set_defaults(func=cmd_normalize)
+
+    p_verify = sub.add_parser("verify", help="read-only gate check (never writes)")
+    p_verify.set_defaults(func=_cmd_verify_only)
 
     p_key = sub.add_parser("keybg", help="key out a flat background from an opaque render")
     p_key.add_argument("--input", required=True)

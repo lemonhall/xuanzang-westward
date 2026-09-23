@@ -32,6 +32,7 @@ import io
 import json
 import os
 import sys
+import time
 import winreg
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -43,9 +44,58 @@ from PIL import Image
 REPO = Path(__file__).resolve().parents[1]
 RAW_ROOT = REPO / "assets" / "raw" / "ofox"
 PROXY = {"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"}
+LOCAL_PROXY_URL = "http://127.0.0.1:7897"
 GENERATIONS = "https://api.ofox.ai/v1/images/generations"
 EDITS = "https://api.ofox.ai/v1/images/edits"
 DEFAULT_MODEL = "openai/gpt-image-2.5-sunburst"
+ROUTE = "proxy"  # "proxy" | "direct"; selected by --proxy (default: auto probe)
+
+
+def _session_for(route: str) -> requests.Session:
+    session = requests.Session()
+    if route == "proxy":
+        session.proxies.update(PROXY)
+    return session
+
+
+def choose_route(preference: str) -> str:
+    """Pick the network route.
+
+    The local proxy occasionally drops long image requests (observed: HTTP 10054
+    resets while the same request succeeds directly). `auto` probes the cheap
+    /v1/models endpoint on the direct route first and falls back to the proxy;
+    the chosen route is always printed, never switched silently.
+    """
+    if preference in ("direct", "proxy"):
+        return preference
+    try:
+        probe = _session_for("direct").get("https://api.ofox.ai/v1/models", timeout=(8, 20))
+        if probe.status_code == 200:
+            return "direct"
+    except Exception:  # noqa: BLE001 - any failure just means "use the proxy"
+        pass
+    return "proxy"
+
+
+def _post_with_retry(session: requests.Session, url: str, attempts: int = 3, **kwargs) -> requests.Response:
+    """POST with a bounded retry for transport-level resets only.
+
+    Seedream requests take 30–90 s and return several MB of base64, and the
+    connection is occasionally reset mid-flight (observed HTTP 10054 on both the
+    local proxy and a direct route). A reset means no HTTP response arrived, so a
+    retry is the only way to get the image; the trade-off is that the server may
+    already have generated a response that we never saw, which would cost one
+    extra image. Bounded to `attempts`, with backoff, and logged.
+    """
+    for i in range(attempts):
+        try:
+            return session.post(url, **kwargs)
+        except (requests.exceptions.ConnectionError, requests.exceptions.ProxyError) as exc:
+            if i == attempts - 1:
+                raise
+            print(f"[ofox] transport reset ({type(exc).__name__}), retry {i + 2}/{attempts} in {5 * (i + 1)}s", flush=True)
+            time.sleep(5 * (i + 1))
+    raise RuntimeError("unreachable")
 
 
 def api_key() -> str:
@@ -91,8 +141,7 @@ def run_job(job: dict, key: str) -> dict:
         return {"slug": job["slug"], "status": "skipped", "reason": f"exists: {run_dir.relative_to(REPO)}"}
     run_dir.mkdir(parents=True)
 
-    session = requests.Session()
-    session.proxies.update(PROXY)
+    session = _session_for(ROUTE)
     headers = {"Authorization": "Bearer " + key}
     reference = job.get("reference")
 
@@ -119,7 +168,7 @@ def run_job(job: dict, key: str) -> dict:
         )
         with ref_path.open("rb") as handle:
             files = {"image": (ref_path.name, handle.read(), "image/png")}
-        response = session.post(EDITS, headers=headers, data=fields, files=files, timeout=(30, 900))
+        response = _post_with_retry(session, EDITS, headers=headers, data=fields, files=files, timeout=(30, 900))
     else:
         payload = {
             "model": model,
@@ -139,7 +188,7 @@ def run_job(job: dict, key: str) -> dict:
             json.dumps({"endpoint": GENERATIONS, "payload": payload}, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        response = session.post(GENERATIONS, headers=headers, json=payload, timeout=(30, 900))
+        response = _post_with_retry(session, GENERATIONS, headers=headers, json=payload, timeout=(30, 900))
 
     (run_dir / "response-meta.json").write_text(
         json.dumps({"status": response.status_code, "content_type": response.headers.get("content-type")}, indent=2),
@@ -192,7 +241,12 @@ def main() -> int:
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--parallel", type=int, default=3)
     parser.add_argument("--only", default=None, help="comma-separated slug filter")
+    parser.add_argument("--proxy", choices=["auto", "direct", "proxy"], default="auto", help="network route (default: auto probe)")
     args = parser.parse_args()
+
+    global ROUTE
+    ROUTE = choose_route(args.proxy)
+    print(f"[ofox] network route: {ROUTE}")
 
     doc = json.loads((REPO / args.manifest).read_text(encoding="utf-8"))
     jobs = doc["jobs"]

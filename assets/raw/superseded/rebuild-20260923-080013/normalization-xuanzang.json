@@ -1,0 +1,29 @@
+{
+  "actor": "xuanzang",
+  "sheet_scale": 0.77477,
+  "frames": {
+    "idle_01": 0.77477,
+    "walk_01": 0.77477,
+    "walk_02": 0.77477,
+    "walk_03": 0.77477,
+    "jump_01": 0.77477,
+    "fall_01": 0.77477,
+    "land_01": 0.77477,
+    "attack_01": 0.77477,
+    "attack_02": 0.7619,
+    "chant_01": 0.77477,
+    "hurt_01": 0.77477,
+    "down_01": 0.77477
+  },
+  "clamped": [
+    {
+      "frame": "attack_02",
+      "sheet_scale": 0.77477,
+      "used_scale": 0.7619
+    }
+  ],
+  "unique_scales": [
+    0.7619,
+    0.77477
+  ]
+}

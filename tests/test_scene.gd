@@ -32,6 +32,7 @@ func _run() -> void:
 	await _test_ground_band_framing()
 	await _test_ground_reaches_below_the_view()
 	await _test_enemy_art_and_facing()
+	await _test_sprite_canvas_matches_spec()
 
 	if failures.is_empty():
 		print("ALL TESTS PASSED")
@@ -365,6 +366,40 @@ func _test_first_gap_crossing() -> void:
 	_check(player.global_position.x > next_x - 20.0, "player did not clear the first gap (x=%.1f, next platform starts at %.1f)" % [player.global_position.x, next_x])
 	root.queue_free()
 	await get_tree().physics_frame
+
+
+func _test_sprite_canvas_matches_spec() -> void:
+	# 用户实测缺陷："游戏里混用了 2.5 和 Seed 的图"——真实原因是 Godot 导入缓存过期：
+	# 同名文件换了内容（连画布尺寸都变了），引擎仍显示旧贴图。
+	# 这条断言用"加载出来的贴图尺寸必须等于素材规范"来抓它：缓存一旦过期就会露馅。
+	var expected := {
+		"xuanzang": Vector2i(1024, 768),
+		"wolf": Vector2i(512, 384),
+	}
+	for actor in expected.keys():
+		var dir_path := "res://assets/sprites/%s" % actor
+		var dir := DirAccess.open(dir_path)
+		_check(dir != null, "sprite directory missing: %s" % dir_path)
+		if dir == null:
+			continue
+		var checked := 0
+		for file_name in dir.get_files():
+			if not file_name.ends_with(".png"):
+				continue
+			var texture: Texture2D = load("%s/%s" % [dir_path, file_name])
+			if texture == null:
+				_check(false, "texture failed to load: %s/%s" % [actor, file_name])
+				continue
+			var size := texture.get_size()
+			_check(
+				int(size.x) == expected[actor].x and int(size.y) == expected[actor].y,
+				"%s/%s loads as %dx%d but the spec says %dx%d — stale Godot import cache (delete .godot/imported and re-import)" % [
+					actor, file_name, int(size.x), int(size.y), expected[actor].x, expected[actor].y
+				]
+			)
+			checked += 1
+		_check(checked > 0, "no frames found for %s" % actor)
+		print("[diag] canvas check %s: %d frames at %dx%d" % [actor, checked, expected[actor].x, expected[actor].y])
 
 
 func _test_enemy_art_and_facing() -> void:

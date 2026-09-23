@@ -1,0 +1,3 @@
+[ofox] failed   sheet_xuanzang_seed12_v2  ConnectionError(ProtocolError('Connection aborted.', ConnectionResetError(10054, '远程主机强迫关闭了一个现有的连接。', None, 10054, None)))
+
+[ofox] ok=0 failed=1 skipped=0

@@ -199,6 +199,39 @@ def despeckle(
     }
 
 
+def despill(rgba: Image.Image, key: tuple[int, int, int], strength: float = 0.85) -> tuple[Image.Image, dict]:
+    """Remove the last trace of key colour from the soft edge.
+
+    Unmixing handles most of it, but a 1 px band keeps a faint tint. For a magenta
+    key the giveaway is `min(r, g) > b`: the excess of the two key channels over
+    the third is pulled back toward the third, and only on partially transparent
+    pixels, so the subject's own warm colours are untouched.
+    """
+    kr, kg, kb = key
+    magenta_like = kb <= kr and kb <= kg
+    out = rgba.copy()
+    px = out.load()
+    w, h = out.size
+    touched = 0
+    excess_sum = 0.0
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a == 0 or a >= 254:
+                continue
+            excess = min(r, g) - b if magenta_like else 0
+            if excess <= 2:
+                continue
+            cut = excess * strength
+            px[x, y] = (max(0, int(r - cut)), max(0, int(g - cut)), b, a)
+            touched += 1
+            excess_sum += excess
+    return out, {
+        "despill_pixels": touched,
+        "despill_mean_excess": round(excess_sum / touched, 2) if touched else 0.0,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
@@ -209,6 +242,7 @@ def main() -> int:
     parser.add_argument("--report", default=None)
     parser.add_argument("--despeckle-min-area", type=int, default=64, help="clear isolated alpha blobs smaller than this many pixels (0 disables)")
     parser.add_argument("--alpha-floor", type=int, default=40, help="treat alpha below this as fully transparent (visible-haze removal)")
+    parser.add_argument("--despill", type=float, default=0.85, help="key-colour spill removal strength on soft edges (0 disables)")
     args = parser.parse_args()
 
     src = Path(args.input)
@@ -222,6 +256,9 @@ def main() -> int:
     im.load()
     key = border_key_color(im.convert("RGB")) if args.key == "auto" else parse_color(args.key)
     rgba, stats = matte(im, key, args.inner, args.outer, args.alpha_floor)
+    if args.despill > 0.0:
+        rgba, spill = despill(rgba, key, args.despill)
+        stats.update(spill)
     if args.despeckle_min_area > 0:
         rgba, speck = despeckle(rgba, alpha_threshold=max(8, args.alpha_floor), min_area=args.despeckle_min_area)
         stats.update(speck)
