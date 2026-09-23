@@ -17,11 +17,16 @@ const REFERENCE_LENGTH := 300.0
 @export var patrol_range := 120.0
 @export var on_screen_height := 96.0
 @export var on_screen_length := 170.0
+## 感知半径：主角进入后，狼会转身盯着主角（用户实测"狼总是看向右边，根本不看主角"）。
+@export var notice_radius := 320.0
+## 进入警戒后向主角靠近的速度倍率。
+@export var chase_speed_scale := 1.5
 
 var hp := 3
 var patrol_dir := 1.0
 var home_x := 0.0
 var has_art := false
+var _alert := false
 
 var _flash := 0.0
 var _sprite: AnimatedSprite2D
@@ -105,6 +110,18 @@ func _physics_process(delta: float) -> void:
 	if _flash > 0.0:
 		_flash = maxf(0.0, _flash - delta)
 		modulate = Color(1.0, 1.0, 1.0) if _flash <= 0.0 else Color(2.2, 2.2, 2.2)
+	var target := _closest_xuanzang()
+	_alert = target != null
+	if _alert:
+		# 盯着主角：朝向由主角方位决定，并朝他靠近。
+		var direction: float = signf(target.global_position.x - global_position.x)
+		if direction != 0.0:
+			patrol_dir = direction
+		velocity.x = patrol_dir * patrol_speed * chase_speed_scale
+		velocity.y += GRAVITY * delta
+		move_and_slide()
+		_apply_animation()
+		return
 	velocity.y += GRAVITY * delta
 	velocity.x = patrol_dir * patrol_speed
 	if absf(global_position.x - home_x) > patrol_range:
@@ -112,6 +129,21 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	if is_on_wall():
 		patrol_dir = -patrol_dir
+	_apply_animation()
+
+
+func _closest_xuanzang() -> Node2D:
+	var best: Node2D = null
+	var best_distance := notice_radius
+	for node in get_tree().get_nodes_in_group("player"):
+		var distance: float = node.global_position.distance_to(global_position)
+		if distance < best_distance:
+			best = node
+			best_distance = distance
+	return best
+
+
+func _apply_animation() -> void:
 	if _sprite:
 		_sprite.flip_h = patrol_dir < 0.0
 		if _sprite.animation.begins_with("hurt") == false and _sprite.animation != "attack":

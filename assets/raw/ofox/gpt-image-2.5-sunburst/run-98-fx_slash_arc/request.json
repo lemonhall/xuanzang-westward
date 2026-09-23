@@ -1,0 +1,11 @@
+{
+  "endpoint": "https://api.ofox.ai/v1/images/generations",
+  "payload": {
+    "model": "openai/gpt-image-2.5-sunburst",
+    "prompt": "为 2D 横版游戏绘制单个挥砍特效素材（单张，不是拼图，只要一道弧）：一道从左上方向右下方扫过的墨色扇弧，弯月形，内缘浅、外缘浓，末端渐隐并甩出几点飞白墨点，整体像毛笔一挥而就的锋刃轨迹，有强烈的速度与方向感。主体居中横向铺开，四周完全透明；纯透明背景，真实 alpha 通道；没有地面、没有投影、没有其它元素、不要任何文字。风格：中式国风水墨，墨色为主略带赭金，边缘干净利落。",
+    "size": "1024x1024",
+    "n": 1,
+    "output_format": "png",
+    "background": "transparent"
+  }
+}

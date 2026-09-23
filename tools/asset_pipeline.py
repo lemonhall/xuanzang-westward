@@ -269,12 +269,12 @@ def cmd_keybg(args) -> int:
     return 0
 
 
-def _label_components(mask: Image.Image, min_area: int) -> list[tuple[int, int, int, int]]:
-    """Connected-component bounding boxes of a 1-bit mask (8-connectivity)."""
+def _label_components(mask: Image.Image, min_area: int) -> list[tuple[tuple[int, int, int, int], tuple[int, int]]]:
+    """Connected components of a 1-bit mask: (bbox, seed pixel) per component."""
     w, h = mask.size
     px = mask.load()
     seen = bytearray(w * h)
-    boxes: list[tuple[int, int, int, int]] = []
+    boxes: list[tuple[tuple[int, int, int, int], tuple[int, int]]] = []
     for sy in range(h):
         for sx in range(w):
             start = sy * w + sx
@@ -310,7 +310,7 @@ def _label_components(mask: Image.Image, min_area: int) -> list[tuple[int, int, 
                         seen[idx] = 1
                         stack.append((nx, ny))
             if area >= min_area:
-                boxes.append((min_x, min_y, max_x + 1, max_y + 1))
+                boxes.append(((min_x, min_y, max_x + 1, max_y + 1), (sx, sy)))
     return boxes
 
 
@@ -356,6 +356,92 @@ def _tight_crop(im: Image.Image, box: tuple[int, int, int, int], downsample: int
     return crop.crop(tight) if tight else crop
 
 
+def _isolate_component(
+    im: Image.Image,
+    box: tuple[int, int, int, int],
+    downsample: int,
+    seed: tuple[int, int],
+    alpha_threshold: int = 16,
+) -> Image.Image:
+    """Crop one detected pose and delete every pixel not connected to it.
+
+    用户实测缺陷："横向切开时带出了上一行的残边"。根因是裁剪只按包围盒收紧：
+    膨胀用的 padding 会把邻行的零星像素圈进来，收紧后它们就成了这一帧的一部分。
+    这里改用连通域隔离（在 padding 区域内从种子点做 flood fill），邻行像素必被清掉。
+    """
+    pad = downsample * 2
+    full = (
+        max(0, box[0] * downsample - pad),
+        max(0, box[1] * downsample - pad),
+        min(im.width, box[2] * downsample + pad),
+        min(im.height, box[3] * downsample + pad),
+    )
+    crop = im.crop(full)
+    w, h = crop.size
+    step = 2
+    mw, mh = (w + step - 1) // step, (h + step - 1) // step
+
+    ap = crop.getchannel("A").load()
+    mask = bytearray(mw * mh)
+    for my in range(mh):
+        for mx in range(mw):
+            hit = False
+            for yy in range(my * step, min(h, (my + 1) * step)):
+                for xx in range(mx * step, min(w, (mx + 1) * step)):
+                    if ap[xx, yy] >= alpha_threshold:
+                        hit = True
+                        break
+                if hit:
+                    break
+            if hit:
+                mask[my * mw + mx] = 1
+
+    sx = min(mw - 1, max(0, (seed[0] - full[0]) // step))
+    sy = min(mh - 1, max(0, (seed[1] - full[1]) // step))
+    if not mask[sy * mw + sx]:
+        for my in range(mh):
+            for mx in range(mw):
+                if mask[my * mw + mx]:
+                    sx, sy = mx, my
+                    break
+            else:
+                continue
+            break
+
+    visited = bytearray(mw * mh)
+    visited[sy * mw + sx] = 1
+    stack = [(sx, sy)]
+    while stack:
+        cx, cy = stack.pop()
+        for dy in (-1, 0, 1):
+            ny = cy + dy
+            if ny < 0 or ny >= mh:
+                continue
+            for dx in (-1, 0, 1):
+                nx = cx + dx
+                if nx < 0 or nx >= mw:
+                    continue
+                idx = ny * mw + nx
+                if visited[idx] or not mask[idx]:
+                    continue
+                visited[idx] = 1
+                stack.append((nx, ny))
+
+    cp = crop.load()
+    for my in range(mh):
+        for mx in range(mw):
+            if visited[my * mw + mx]:
+                continue
+            for yy in range(my * step, min(h, (my + 1) * step)):
+                for xx in range(mx * step, min(w, (mx + 1) * step)):
+                    r, g, b, a = cp[xx, yy]
+                    if a:
+                        cp[xx, yy] = (0, 0, 0, 0)
+
+    tight = crop.getchannel("A").getbbox()
+    return crop.crop(tight) if tight else crop
+
+
 def slice_sheet(
     src: Path,
     actor: str,
@@ -382,9 +468,12 @@ def slice_sheet(
         mask = mask.filter(ImageFilter.MaxFilter(dilate if dilate % 2 == 1 else dilate + 1))
 
     min_area = max(4, int(mask.width * mask.height * 0.002))
-    boxes = _label_components(mask.convert("L"), min_area)
-    if not boxes:
+    labeled = _label_components(mask.convert("L"), min_area)
+    if not labeled:
         raise SystemExit(f"no components found in {src}")
+    # 种子从掩码坐标换算回全分辨率坐标，供连通域隔离使用。
+    seeds = {item[0]: (item[1][0] * downsample, item[1][1] * downsample) for item in labeled}
+    boxes = [item[0] for item in labeled]
 
     # Assign components to rows by splitting sorted y-centres at the largest gaps.
     # More robust than matching against each row's first centre, which breaks as
@@ -424,10 +513,11 @@ def slice_sheet(
     # 间距闸门：同一行相邻姿态的水平间隙必须 ≥ 图宽 3%。
     # 实测教训：狼图第一行三个姿态包围盒水平重叠 104px / 16px，只是"没碰到"才切得开——
     # 这种图必须重做，而不是靠几像素的运气。
-    # 间距闸门分两档：重叠或 <1% 图宽 = 硬失败（切片不可靠）；
-    # 1%–3% = 警告并放行（连通域仍能分开，不值得为此重生成整张图）。
-    hard_gap = int(im.width * 0.01)
-    warn_gap = int(im.width * 0.03)
+    # 间距闸门：自"连通域隔离裁剪"落地后，只有**接触/重叠**才是真危险
+    # （两帧会并成一个连通域，由数量断言兜住）；间隙小于 1% 图宽只记警告。
+    # 这条门槛原先定在 1%（因为当时按包围盒裁剪，邻行像素会被吃进来），现已按新事实收紧语义。
+    hard_gap = 1
+    warn_gap = int(im.width * 0.01)
     tight: list[dict] = []
     warn: list[dict] = []
     for row in row_groups:
@@ -460,7 +550,8 @@ def slice_sheet(
 
     # 一张图只用一个缩放比：以中立姿态（阅读顺序第一帧）为基准，水平锚定用脚/爪质心。
     # 逐帧各自缩放正是"忽大忽小"的根因，这里绝不再犯。
-    crops = [_tight_crop(im, box, downsample) for box in ordered]
+    # 连通域隔离：只保留与本姿态相连的像素，杜绝邻行残边（用户实测缺陷）。
+    crops = [_isolate_component(im, box, downsample, seeds[box]) for box in ordered]
     sheet_scale = spec_scale(spec, crops[0])
     clamped: list[dict] = []
     scales_used: dict[str, float] = {}

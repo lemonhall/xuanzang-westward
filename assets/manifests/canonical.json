@@ -2,8 +2,8 @@
   "note": "每个角色的唯一素材来源。rebuild_sprites.py 只从这里重建，其它 run 一律视为历史档案。更新素材时先改这里，再跑一次重建。",
   "actors": {
     "xuanzang": {
-      "sheet": "assets/raw/ofox/doubao-seedream-5.0-pro/run-96-sheet_xuanzang_seed12_v3/image-0.png",
-      "aliases": ["idle", "walk", "walk", "walk", "jump", "fall", "land", "attack", "attack", "chant", "hurt", "down"],
+      "sheet": "assets/raw/ofox/doubao-seedream-5.0-pro/run-99-sheet_xuanzang_seed12_v5/image-0.png",
+      "aliases": ["idle", "walk", "walk", "walk", "walk", "jump", "land", "attack", "attack", "attack", "chant", "hurt"],
       "rows": 3,
       "dilate": 3
     },

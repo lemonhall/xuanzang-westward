@@ -41,4 +41,5 @@ func _draw_hud(canvas: Control) -> void:
 	canvas.draw_rect(Rect2(bar.position, Vector2(bar.size.x * filled_ratio, bar.size.y)), Color("#D4A02A"))
 	canvas.draw_rect(bar, Color("#2E2A24"), false, 2.0)
 	canvas.draw_string(font, Vector2(276, 74), "心念 %d" % _focus, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("#2E2A24"))
+	canvas.draw_string(font, Vector2(28, 100), "A/D 移动  空格 跳  J 挥杖  K 诵经(回复心念)", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.25, 0.22, 0.19, 0.75))
 	canvas.queue_redraw()

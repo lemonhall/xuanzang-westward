@@ -23,6 +23,14 @@ const ATTACK_TOTAL := 0.34
 const COMBO_WINDOW := 0.45
 const KNOCKBACK := 240.0
 const FALL_RESPAWN_DELAY := 0.6
+## 诵经（K）：站定持诵 N 秒回复心念。用户问过"K 到底是干啥的"，所以它必须有真实作用。
+const CHANT_CHANNEL := 0.8
+const CHANT_FOCUS_GAIN := 25
+## 攻击时向前小冲一段，让"挥出去"这件事在位移上发生（画面之外的第二重打击感）。
+const ATTACK_LUNGE := 130.0
+## 走完一个完整行走循环前进的世界距离（像素）。动画播放速度由它与实际速度算出，
+## 这样脚才不打滑（用户实测"像滑步"）。可在游戏里观察后微调这个数。
+const WALK_STRIDE_PX := 150.0
 
 const SPRITE_DIR := "res://assets/sprites/xuanzang"
 ## Normalized frame canvas (see tools/asset_pipeline.py ACTOR_SPECS). It is wider
@@ -34,7 +42,7 @@ const FEET_Y := 736.0
 const TEXTURE_HEIGHT := 430.0
 ## 角色在屏幕上的身高。用户实测反馈"玄奘整体太小了"，从 150 px 提到 190 px
 ## （约屏幕高度的 26%）；碰撞体随之自动等比例变大。
-const ON_SCREEN_HEIGHT := 190.0
+const ON_SCREEN_HEIGHT := 225.0
 
 enum State { IDLE, RUN, JUMP, FALL, ATTACK, HURT, CHANT }
 
@@ -56,9 +64,12 @@ var _facing := 1
 var _camera: Node
 var _hit_consumed := false
 var _respawn_cooldown := 0.0
+var _chant_time := 0.0
+var _walk_phase := 0.0
 
 
 func _ready() -> void:
+	add_to_group("player")
 	collision_layer = 1
 	# Collide with terrain only (layer 1). Enemies live on layer 2 and are reached
 	# through the attack query, so they never body-block the character.
@@ -82,6 +93,9 @@ func _build_sprite() -> void:
 	var scale_factor := ON_SCREEN_HEIGHT / TEXTURE_HEIGHT
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = _load_frames()
+	# 行走动画由代码按实际位移驱动（speed_scale 直接等于每秒帧数），基准速度设 1。
+	if _sprite.sprite_frames.has_animation("walk"):
+		_sprite.sprite_frames.set_animation_speed("walk", 1.0)
 	_sprite.scale = Vector2(scale_factor, scale_factor)
 	# 贴图里脚底位于 FEET_Y 行；把这一行对齐到节点原点，碰撞/相机/地形才对得上。
 	_sprite.offset = Vector2(0, CANVAS.y * 0.5 - FEET_Y)
@@ -111,6 +125,8 @@ func _physics_process(delta: float) -> void:
 
 	if state == State.ATTACK:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta * 0.6)
+	elif state == State.CHANT:
+		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 	else:
 		if absf(axis) > 0.01:
 			velocity.x = move_toward(velocity.x, axis * MAX_SPEED, ACCEL * delta)
@@ -157,7 +173,13 @@ func _update_state(delta: float) -> void:
 		return
 	if input_source.is_chant_pressed() and is_on_floor():
 		_set_state(State.CHANT)
+		_chant_time += delta
+		if _chant_time >= CHANT_CHANNEL:
+			_chant_time = 0.0
+			GameState.gain_focus(CHANT_FOCUS_GAIN)
+			print("[player] 诵经完成，心念 +%d（当前 %d）" % [CHANT_FOCUS_GAIN, GameState.focus])
 		return
+	_chant_time = 0.0
 	if not is_on_floor():
 		_set_state(State.JUMP if velocity.y < 0.0 else State.FALL)
 	elif absf(velocity.x) > 12.0:
@@ -165,9 +187,20 @@ func _update_state(delta: float) -> void:
 	else:
 		_set_state(State.IDLE)
 	if state == State.RUN:
-		_sprite.speed_scale = clampf(absf(velocity.x) / MAX_SPEED, 0.6, 1.6)
+		# 脚不打滑：走完一个循环应当前进 WALK_STRIDE_PX，于是
+		# 每秒帧数 = 实际速度 / 步幅 * 循环帧数；speed_scale 就是每秒帧数本身。
+		var cycle_frames := 1
+		if _sprite.sprite_frames.has_animation("walk"):
+			cycle_frames = maxi(1, _sprite.sprite_frames.get_frame_count("walk"))
+		var fps := absf(velocity.x) / WALK_STRIDE_PX * float(cycle_frames)
+		_sprite.speed_scale = clampf(fps, 1.0, 20.0)
+		# 走路/奔跑时加一点上下起伏，缓解三帧动画的顿挫感。
+		_walk_phase += delta * fps * TAU / float(cycle_frames)
+		_sprite.offset.y = CANVAS.y * 0.5 - FEET_Y + sin(_walk_phase) * 2.5
 	else:
 		_sprite.speed_scale = 1.0
+		_walk_phase = 0.0
+		_sprite.offset.y = CANVAS.y * 0.5 - FEET_Y
 	delta = delta  # keep the signature explicit for future state work
 
 
@@ -177,17 +210,28 @@ func _set_state(next: State) -> void:
 	state = next
 	match next:
 		State.IDLE:
-			_sprite.play("idle")
+			_play("idle")
 		State.RUN:
-			_sprite.play("walk")
+			_play("walk")
 		State.JUMP:
-			_sprite.play("jump")
+			_play("jump")
 		State.FALL:
-			_sprite.play("fall")
+			_play("fall", ["jump"])
 		State.CHANT:
-			_sprite.play("chant")
+			_play("chant", ["idle"])
 		State.HURT:
-			_sprite.play("hurt")
+			_play("hurt", ["idle"])
+
+
+func _play(animation: String, fallbacks: Array = []) -> void:
+	## 素材里缺某个动作时退回可用动作，而不是让引擎报"动画不存在"。
+	if _sprite.sprite_frames.has_animation(animation):
+		_sprite.play(animation)
+		return
+	for candidate in fallbacks:
+		if _sprite.sprite_frames.has_animation(candidate):
+			_sprite.play(candidate)
+			return
 
 
 func _handle_attack(delta: float) -> void:
@@ -212,6 +256,7 @@ func _handle_attack(delta: float) -> void:
 	_attack_time = 0.0
 	_hit_consumed = false
 	state = State.ATTACK
+	velocity.x = _facing * ATTACK_LUNGE
 	_sprite.play("attack_0%d" % (_attack_index + 1))
 
 
@@ -232,12 +277,21 @@ func _query_hit() -> void:
 		if body and body.has_method("take_hit"):
 			var point: Vector2 = body.global_position + Vector2(0, -20)
 			body.take_hit(1, signf(body.global_position.x - global_position.x))
+			_spawn_slash(point)
 			attacked.emit(point, 1)
 			GameState.gain_focus(ATTACK_FOCUS_GAIN)
 			Hitstop.freeze(0.07)
 			if _camera and _camera.has_method("shake"):
 				_camera.shake(5.0, 0.2)
 			break
+
+
+func _spawn_slash(point: Vector2) -> void:
+	## 挥砍弧线特效：命中位置叠一道弧，攻击的"挥出去"才有画面。
+	var slash := SlashArc.new()
+	slash.position = point + Vector2(_facing * -18.0, 0)
+	slash.facing = _facing
+	get_parent().add_child(slash)
 
 
 func take_damage(from_x: float) -> void:
